@@ -36,7 +36,7 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 
 ### Option 1: From npm (Recommended)
 
-Add to your OpenCode config file (`~/.config/opencode/config.json`):
+Add to your OpenCode config file (`~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -86,49 +86,123 @@ If you prefer to create the config manually, add a `smart-voice-notify.jsonc` fi
 ```jsonc
 {
     // ============================================================
-    // NOTIFICATION MODE SETTINGS
+    // NOTIFICATION MODE SETTINGS (Smart Notification System)
     // ============================================================
-    // 'sound-first' - Play sound immediately, TTS reminder after delay (RECOMMENDED)
-    // 'tts-first'   - Speak TTS immediately
-    // 'both'        - Play sound AND speak TTS immediately
-    // 'sound-only'  - Only play sound, no TTS
+    // Controls how notifications are delivered:
+    //   'sound-first' - Play sound immediately, TTS reminder after delay (RECOMMENDED)
+    //   'tts-first'   - Speak TTS immediately, no sound
+    //   'both'        - Play sound AND speak TTS immediately
+    //   'sound-only'  - Only play sound, no TTS at all
     "notificationMode": "sound-first",
     
     // ============================================================
+    // TTS REMINDER SETTINGS (When user doesn't respond to sound)
+    // ============================================================
+    
+    // Enable TTS reminder if user doesn't respond after sound notification
+    "enableTTSReminder": true,
+    
+    // Delay (in seconds) before TTS reminder fires
+    "ttsReminderDelaySeconds": 30,         // Global default
+    "idleReminderDelaySeconds": 30,        // For task completion notifications
+    "permissionReminderDelaySeconds": 20,  // For permission requests (more urgent)
+    
+    // Follow-up reminders if user STILL doesn't respond after first TTS
+    "enableFollowUpReminders": true,
+    "maxFollowUpReminders": 3,              // Max number of follow-up TTS reminders
+    "reminderBackoffMultiplier": 1.5,       // Each follow-up waits longer (30s, 45s, 67s...)
+
+    // ============================================================
     // TTS ENGINE SELECTION
     // ============================================================
-    // 'elevenlabs' - Best quality (requires API key)
-    // 'edge'       - Free neural voices (requires: pip install edge-tts)
-    // 'sapi'       - Windows built-in (free, offline)
-    "ttsEngine": "elevenlabs",
+    // 'elevenlabs' - Best quality, anime-like voices (requires API key)
+    // 'edge'       - Good quality neural voices (free, requires: pip install edge-tts)
+    // 'sapi'       - Windows built-in voices (free, offline)
+    "ttsEngine": "edge",
     "enableTTS": true,
     
     // ============================================================
-    // ELEVENLABS SETTINGS
+    // ELEVENLABS SETTINGS (Best Quality - Anime-like Voices)
     // ============================================================
     // Get your API key from: https://elevenlabs.io/app/settings/api-keys
-    "elevenLabsApiKey": "your-api-key-here",
-    "elevenLabsVoiceId": "cgSgspJ2msm6clMCkdW9",  // Jessica voice
+    // "elevenLabsApiKey": "YOUR_API_KEY_HERE",
+    "elevenLabsVoiceId": "cgSgspJ2msm6clMCkdW9",
     "elevenLabsModel": "eleven_turbo_v2_5",
+    "elevenLabsStability": 0.5,
+    "elevenLabsSimilarity": 0.75,
+    "elevenLabsStyle": 0.5,
     
     // ============================================================
-    // TTS REMINDER SETTINGS
+    // EDGE TTS SETTINGS (Free Neural Voices - Default Engine)
     // ============================================================
-    "enableTTSReminder": true,
-    "idleReminderDelaySeconds": 30,
-    "permissionReminderDelaySeconds": 20,
-    "enableFollowUpReminders": true,
-    "maxFollowUpReminders": 3,
+    "edgeVoice": "en-US-AnaNeural",
+    "edgePitch": "+50Hz",
+    "edgeRate": "+10%",
+    
+    // ============================================================
+    // SAPI SETTINGS (Windows Built-in - Last Resort Fallback)
+    // ============================================================
+    "sapiVoice": "Microsoft Zira Desktop",
+    "sapiRate": -1,
+    "sapiPitch": "medium",
+    "sapiVolume": "loud",
+    
+    // ============================================================
+    // INITIAL TTS MESSAGES (Used immediately or after sound)
+    // ============================================================
+    "idleTTSMessages": [
+        "All done! Your task has been completed successfully.",
+        "Hey there! I finished working on your request.",
+        "Task complete! Ready for your review whenever you are.",
+        "Good news! Everything is done and ready for you.",
+        "Finished! Let me know if you need anything else."
+    ],
+    "permissionTTSMessages": [
+        "Attention please! I need your permission to continue.",
+        "Hey! Quick approval needed to proceed with the task.",
+        "Heads up! There is a permission request waiting for you.",
+        "Excuse me! I need your authorization before I can continue.",
+        "Permission required! Please review and approve when ready."
+    ],
+
+    // ============================================================
+    // TTS REMINDER MESSAGES (Used after delay if no response)
+    // ============================================================
+    "idleReminderTTSMessages": [
+        "Hey, are you still there? Your task has been waiting for review.",
+        "Just a gentle reminder - I finished your request a while ago!",
+        "Hello? I completed your task. Please take a look when you can.",
+        "Still waiting for you! The work is done and ready for review.",
+        "Knock knock! Your completed task is patiently waiting for you."
+    ],
+    "permissionReminderTTSMessages": [
+        "Hey! I still need your permission to continue. Please respond!",
+        "Reminder: There is a pending permission request. I cannot proceed without you.",
+        "Hello? I am waiting for your approval. This is getting urgent!",
+        "Please check your screen! I really need your permission to move forward.",
+        "Still waiting for authorization! The task is on hold until you respond."
+    ],
     
     // ============================================================
     // SOUND FILES (relative to OpenCode config directory)
     // ============================================================
     "idleSound": "assets/Soft-high-tech-notification-sound-effect.mp3",
-    "permissionSound": "assets/Machine-alert-beep-sound-effect.mp3"
+    "permissionSound": "assets/Machine-alert-beep-sound-effect.mp3",
+    
+    // ============================================================
+    // GENERAL SETTINGS
+    // ============================================================
+    "wakeMonitor": true,
+    "forceVolume": true,
+    "volumeThreshold": 50,
+    "enableToast": true,
+    "enableSound": true,
+    "idleThresholdSeconds": 60,
+    "debugLog": false
 }
 ```
 
-See `example.config.jsonc` for the full configuration options.
+See `example.config.jsonc` for more details.
 
 ## Requirements
 
