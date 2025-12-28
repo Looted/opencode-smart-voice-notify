@@ -19,8 +19,10 @@ import { createTTS, getTTSConfig } from './util/tts.js';
  * - Follow-up reminders with exponential backoff
  * - Monitor wake and volume boost
  * - Cross-platform support (Windows, macOS, Linux)
+ * 
+ * @type {import("@opencode-ai/plugin").Plugin}
  */
-export const SmartVoiceNotifyPlugin = async ({ $, client }) => {
+export default async function SmartVoiceNotifyPlugin({ project, client, $, directory, worktree }) {
   const config = getTTSConfig();
   const tts = createTTS({ $, client });
 
@@ -425,7 +427,4 @@ export const SmartVoiceNotifyPlugin = async ({ $, client }) => {
       }
     },
   };
-};
-
-// Default export for compatibility
-export default SmartVoiceNotifyPlugin;
+}

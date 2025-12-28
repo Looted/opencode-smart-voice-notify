@@ -1,6 +1,6 @@
 {
   "name": "opencode-smart-voice-notify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Smart voice notification plugin for OpenCode with multiple TTS engines (ElevenLabs, Edge TTS, Windows SAPI) and intelligent reminder system",
   "main": "index.js",
   "type": "module",
@@ -39,5 +39,8 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.28.0"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
   }
 }

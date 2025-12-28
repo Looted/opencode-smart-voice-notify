@@ -1,6 +1,11 @@
 # Dependencies
 node_modules/
 
+# Lock files (let OpenCode/Bun generate fresh ones)
+bun.lock
+bun.lockb
+package-lock.json
+
 # Debug logs
 *.log
 *-debug.log
