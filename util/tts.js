@@ -2,6 +2,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import { loadConfig } from './config.js';
+import { createLinuxPlatform } from './linux.js';
 
 const platform = os.platform();
 const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
@@ -121,6 +122,18 @@ export const createTTS = ({ $, client }) => {
   const config = getTTSConfig();
   const logFile = path.join(configDir, 'smart-voice-notify-debug.log');
 
+  // Debug logging function (defined early so it can be passed to Linux platform)
+  const debugLog = (message) => {
+    if (!config.debugLog) return;
+    try {
+      const timestamp = new Date().toISOString();
+      fs.appendFileSync(logFile, `[${timestamp}] ${message}\n`);
+    } catch (e) {}
+  };
+
+  // Initialize Linux platform utilities (only used on Linux)
+  const linux = platform === 'linux' ? createLinuxPlatform({ $, debugLog }) : null;
+
   const showToast = async (message, variant = 'info') => {
     if (!config.enableToast) return;
     try {
@@ -133,14 +146,6 @@ export const createTTS = ({ $, client }) => {
           }
         });
       }
-    } catch (e) {}
-  };
-
-  const debugLog = (message) => {
-    if (!config.debugLog) return;
-    try {
-      const timestamp = new Date().toISOString();
-      fs.appendFileSync(logFile, `[${timestamp}] ${message}\n`);
     } catch (e) {}
   };
 
@@ -173,7 +178,11 @@ export const createTTS = ({ $, client }) => {
         for (let i = 0; i < loops; i++) {
           await $`afplay ${filePath}`.quiet();
         }
+      } else if (platform === 'linux' && linux) {
+        // Use the Linux platform module for audio playback
+        await linux.playAudioFile(filePath, loops);
       } else {
+        // Generic fallback for other Unix-like systems
         for (let i = 0; i < loops; i++) {
           try {
             await $`paplay ${filePath}`.quiet();
@@ -337,8 +346,15 @@ ${ssml}
 
   /**
    * Check if the system has been idle long enough that the monitor might be asleep.
+   * On Linux, we always return true (assume monitor might be asleep) since idle detection
+   * varies significantly across desktop environments.
    */
   const isMonitorLikelyAsleep = async () => {
+    if (platform === 'linux') {
+      // On Linux, we can't reliably detect idle time across all DEs
+      // Return true to always attempt wake (it's a no-op if already awake)
+      return true;
+    }
     if (platform !== 'win32' || !$) return true;
     try {
       const idleThreshold = config.idleThresholdSeconds || 60;
@@ -378,6 +394,10 @@ public static class IdleCheck {
    * Get the current system volume level (0-100).
    */
   const getCurrentVolume = async () => {
+    // Use Linux platform module
+    if (platform === 'linux' && linux) {
+      return await linux.getCurrentVolume();
+    }
     if (platform !== 'win32' || !$) return -1;
     try {
       const cmd = `
@@ -416,6 +436,9 @@ public static extern int waveOutGetVolume(IntPtr hwo, out uint dwVolume);
         await $`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ${cmd}`.quiet();
       } else if (platform === 'darwin') {
         await $`caffeinate -u -t 1`.quiet();
+      } else if (platform === 'linux' && linux) {
+        // Use the Linux platform module for wake monitor
+        await linux.wakeMonitor();
       }
     } catch (e) {
       debugLog(`wakeMonitor error: ${e.message}`);
@@ -439,6 +462,9 @@ public static extern int waveOutGetVolume(IntPtr hwo, out uint dwVolume);
         await $`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ${cmd}`.quiet();
       } else if (platform === 'darwin') {
         await $`osascript -e "set volume output volume 100"`.quiet();
+      } else if (platform === 'linux' && linux) {
+        // Use the Linux platform module for force volume
+        await linux.forceVolume();
       }
     } catch (e) {
       debugLog(`forceVolume error: ${e.message}`);
