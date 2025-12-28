@@ -1,7 +1,6 @@
-import path from 'path';
-import os from 'os';
 import fs from 'fs';
-import { loadConfig } from './util/config.js';
+import os from 'os';
+import path from 'path';
 import { createTTS, getTTSConfig } from './util/tts.js';
 
 /**
@@ -183,6 +182,13 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           : config.idleReminderTTSMessages;
         
         const reminderMessage = getRandomMessage(reminderMessages);
+
+        // Check for ElevenLabs API key configuration issues
+        // If user hasn't responded (reminder firing) and config is missing, warn about fallback
+        if (config.ttsEngine === 'elevenlabs' && (!config.elevenLabsApiKey || config.elevenLabsApiKey.trim() === '')) {
+          debugLog('ElevenLabs API key missing during reminder - showing fallback toast');
+          await showToast("⚠️ ElevenLabs API Key missing! Falling back to Edge TTS.", "warning", 6000);
+        }
         
         // Speak the reminder using TTS
         await tts.wakeMonitor();

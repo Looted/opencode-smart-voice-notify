@@ -20,8 +20,8 @@ export const getTTSConfig = () => {
     elevenLabsStability: 0.5,
     elevenLabsSimilarity: 0.75,
     elevenLabsStyle: 0.5,
-    edgeVoice: 'en-US-AnaNeural',
-    edgePitch: '+50Hz',
+    edgeVoice: 'en-US-JennyNeural',
+    edgePitch: '+0Hz',
     edgeRate: '+10%',
     sapiVoice: 'Microsoft Zira Desktop',
     sapiRate: -1,
@@ -245,7 +245,7 @@ export const createTTS = ({ $, client }) => {
       
       const ssml = `<?xml version="1.0" encoding="UTF-8"?>
 <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
-  <voice name="${voice.replace(/'/g, "''")}">
+  <voice name="${voice.replace(/"/g, '&quot;')}">
     <prosody rate="${ratePercent}" pitch="${pitch}" volume="${volume}">
       ${escapedText}
     </prosody>
@@ -255,14 +255,27 @@ export const createTTS = ({ $, client }) => {
       const scriptContent = `
 Add-Type -AssemblyName System.Speech
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$synth.Rate = ${rate}
-try { $synth.SelectVoice('${voice.replace(/'/g, "''")}') } catch {}
-$ssml = @'\\n${ssml}\\n'@
-try { $synth.SpeakSsml($ssml) } catch { $synth.Speak('${text.replace(/'/g, "''")}') }
-$synth.Dispose()
+try {
+    $synth.Rate = ${rate}
+    try { $synth.SelectVoice("${voice.replace(/"/g, '""')}") } catch { }
+    $ssml = @"
+${ssml}
+"@
+    $synth.SpeakSsml($ssml)
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 1
+} finally {
+    if ($synth) { $synth.Dispose() }
+}
 `;
       fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
-      await $`powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${scriptPath}`.quiet();
+      const result = await $`powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${scriptPath}`.nothrow().quiet();
+      
+      if (result.exitCode !== 0) {
+        debugLog(`speakWithSAPI failed with code ${result.exitCode}: ${result.stderr}`);
+        return false;
+      }
       return true;
     } catch (e) {
       debugLog(`speakWithSAPI error: ${e.message}`);

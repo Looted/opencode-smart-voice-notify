@@ -77,7 +77,7 @@ const generateDefaultConfig = () => {
     // 'elevenlabs' - Best quality, anime-like voices (requires API key, free tier: 10k chars/month)
     // 'edge'       - Good quality neural voices (free, requires: pip install edge-tts)
     // 'sapi'       - Windows built-in voices (free, offline, robotic)
-    "ttsEngine": "edge",
+    "ttsEngine": "elevenlabs",
     
     // Enable TTS for notifications (falls back to sound files if TTS fails)
     "enableTTS": true,
@@ -121,10 +121,10 @@ const generateDefaultConfig = () => {
     //   'en-US-AriaNeural'  - Confident, clear
     //   'en-GB-SoniaNeural' - British, friendly
     //   'en-AU-NatashaNeural' - Australian, warm
-    "edgeVoice": "en-US-AnaNeural",
+    "edgeVoice": "en-US-JennyNeural",
     
     // Pitch adjustment: +0Hz to +100Hz (higher = more anime-like)
-    "edgePitch": "+50Hz",
+    "edgePitch": "+0Hz",
     
     // Speech rate: -50% to +100%
     "edgeRate": "+10%",
