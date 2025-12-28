@@ -94,8 +94,8 @@ export const getTTSConfig = () => {
     // ============================================================
     // SOUND FILES (Used for immediate notifications)
     // ============================================================
-    idleSound: 'asset/Soft-high-tech-notification-sound-effect.mp3',
-    permissionSound: 'asset/Machine-alert-beep-sound-effect.mp3',
+    idleSound: 'assets/Soft-high-tech-notification-sound-effect.mp3',
+    permissionSound: 'assets/Machine-alert-beep-sound-effect.mp3',
     
     // ============================================================
     // GENERAL SETTINGS

@@ -1,5 +1,22 @@
 {
     // ============================================================
+    // OpenCode Smart Voice Notify - Full Configuration Reference
+    // ============================================================
+    // 
+    // IMPORTANT: This is a REFERENCE file showing ALL available options.
+    // 
+    // To use this plugin:
+    // 1. Copy this file to: ~/.config/opencode/smart-voice-notify.jsonc
+    //    (On Windows: C:\Users\<YourUser>\.config\opencode\smart-voice-notify.jsonc)
+    // 2. Customize the settings below to your preference
+    // 3. The plugin auto-creates a minimal config if none exists
+    //
+    // Sound files are automatically copied to ~/.config/opencode/assets/
+    // on first run. You can also use your own custom sound files.
+    //
+    // ============================================================
+
+    // ============================================================
     // NOTIFICATION MODE SETTINGS (Smart Notification System)
     // ============================================================
     // Controls how notifications are delivered:
@@ -67,9 +84,11 @@
     // Requires: pip install edge-tts
     
     // Voice options (run 'edge-tts --list-voices' to see all):
-    //   'en-US-AnaNeural'   - Young, cute, cartoon-like
+    //   'en-US-AnaNeural'   - Young, cute, cartoon-like (RECOMMENDED)
     //   'en-US-JennyNeural' - Friendly, warm
     //   'en-US-AriaNeural'  - Confident, clear
+    //   'en-GB-SoniaNeural' - British, friendly
+    //   'en-AU-NatashaNeural' - Australian, warm
     "edgeVoice": "en-US-AnaNeural",
     
     // Pitch adjustment: +0Hz to +100Hz (higher = more anime-like)
@@ -82,19 +101,30 @@
     // SAPI SETTINGS (Windows Built-in - Last Resort Fallback)
     // ============================================================
     
-    // Voice (run PowerShell to list all):
+    // Voice (run PowerShell to list all installed voices):
     //   Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | % { $_.VoiceInfo.Name }
+    //
+    // Common Windows voices:
+    //   'Microsoft Zira Desktop' - Female, US English
+    //   'Microsoft David Desktop' - Male, US English
+    //   'Microsoft Hazel Desktop' - Female, UK English
     "sapiVoice": "Microsoft Zira Desktop",
+    
+    // Speech rate: -10 (slowest) to +10 (fastest), 0 is normal
     "sapiRate": -1,
+    
+    // Pitch: 'x-low', 'low', 'medium', 'high', 'x-high'
     "sapiPitch": "medium",
+    
+    // Volume: 'silent', 'x-soft', 'soft', 'medium', 'loud', 'x-loud'
     "sapiVolume": "loud",
     
     // ============================================================
     // INITIAL TTS MESSAGES (Used immediately or after sound)
-    // These are randomly selected each time
+    // These are randomly selected each time for variety
     // ============================================================
     
-    // Messages when agent finishes work
+    // Messages when agent finishes work (task completion)
     "idleTTSMessages": [
         "All done! Your task has been completed successfully.",
         "Hey there! I finished working on your request.",
@@ -138,8 +168,10 @@
     // ============================================================
     // SOUND FILES (For immediate notifications)
     // These are played first before TTS reminder kicks in
-    // Paths are relative to OpenCode config directory (~/.config/opencode/)
     // ============================================================
+    // Paths are relative to ~/.config/opencode/ directory
+    // The plugin automatically copies bundled sounds to assets/ on first run
+    // You can replace with your own custom MP3/WAV files
     
     "idleSound": "assets/Soft-high-tech-notification-sound-effect.mp3",
     "permissionSound": "assets/Machine-alert-beep-sound-effect.mp3",
@@ -148,11 +180,25 @@
     // GENERAL SETTINGS
     // ============================================================
     
-    "wakeMonitor": true,           // Wake monitor when notifying
-    "forceVolume": true,           // Force volume up if too low
-    "enableToast": true,           // Show TUI toast notifications
-    "enableSound": true,           // Enable audio notifications
-    "volumeThreshold": 50,         // Force volume if below this level
-    "idleThresholdSeconds": 60,    // Consider monitor asleep after this
-    "debugLog": false              // Enable debug logging to file
+    // Wake monitor from sleep when notifying (Windows/macOS)
+    "wakeMonitor": true,
+    
+    // Force system volume up if below threshold
+    "forceVolume": true,
+    
+    // Volume threshold (0-100): force volume if current level is below this
+    "volumeThreshold": 50,
+    
+    // Show TUI toast notifications in OpenCode terminal
+    "enableToast": true,
+    
+    // Enable audio notifications (sound files and TTS)
+    "enableSound": true,
+    
+    // Consider monitor asleep after this many seconds of inactivity (Windows only)
+    "idleThresholdSeconds": 60,
+    
+    // Enable debug logging to ~/.config/opencode/smart-voice-notify-debug.log
+    // Useful for troubleshooting notification issues
+    "debugLog": false
 }
