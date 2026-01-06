@@ -42,7 +42,7 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 
 ## Installation
 
-### Option 1: From npm (Recommended)
+### Option 1: From npm/Bun (Recommended)
 
 Add to your OpenCode config file (`~/.config/opencode/opencode.json`):
 
@@ -52,6 +52,8 @@ Add to your OpenCode config file (`~/.config/opencode/opencode.json`):
   "plugin": ["opencode-smart-voice-notify@latest"]
 }
 ```
+
+> **Note**: OpenCode will automatically install the plugin using your system's package manager (npm or bun).
 
 ### Option 2: From GitHub
 
@@ -234,10 +236,13 @@ See `example.config.jsonc` for more details.
 | Event | Action |
 |-------|--------|
 | `session.idle` | Agent finished working - notify user |
-| `permission.updated` | Permission request - alert user |
+| `permission.asked` | Permission request (SDK v1.1.1+) - alert user |
+| `permission.updated` | Permission request (SDK v1.0.x) - alert user |
 | `permission.replied` | User responded - cancel pending reminders |
 | `message.updated` | New user message - cancel pending reminders |
 | `session.created` | New session - reset state |
+
+> **Note**: The plugin supports both OpenCode SDK v1.0.x and v1.1.x for backward compatibility.
 
 ## Development
 
@@ -247,10 +252,18 @@ To develop on this plugin locally:
    ```bash
    git clone https://github.com/MasuRii/opencode-smart-voice-notify.git
    cd opencode-smart-voice-notify
-   bun install  # or npm install
    ```
 
-2. Link to your OpenCode config:
+2. Install dependencies:
+   ```bash
+   # Using Bun (recommended)
+   bun install
+
+   # Or using npm
+   npm install
+   ```
+
+3. Link to your OpenCode config:
    ```json
    {
      "plugin": ["file:///absolute/path/to/opencode-smart-voice-notify"]
