@@ -313,9 +313,13 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         // USER ACTIVITY DETECTION
         // Cancels pending TTS reminders when user responds
         // ========================================
-        // NOTE: OpenCode event types (as of SDK v1.0.203):
+        // NOTE: OpenCode event types (supporting SDK v1.0.x and v1.1.x):
         //   - message.updated: fires when a message is added/updated (use properties.info.role to check user vs assistant)
+        //   - permission.updated (SDK v1.0.x): fires when a permission request is created
+        //   - permission.asked (SDK v1.1.1+): fires when a permission request is created (replaces permission.updated)
         //   - permission.replied: fires when user responds to a permission request
+        //     - SDK v1.0.x: uses permissionID, response
+        //     - SDK v1.1.1+: uses requestID, reply
         //   - session.created: fires when a new session starts
         //
         // CRITICAL: message.updated fires for EVERY modification to a message (not just creation).
@@ -361,20 +365,23 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         
         if (event.type === "permission.replied") {
           // User responded to a permission request (granted or denied)
-          // Structure: event.properties.{ sessionID, permissionID, response }
+          // Structure varies by SDK version:
+          //   - Old SDK: event.properties.{ sessionID, permissionID, response }
+          //   - New SDK (v1.1.1+): event.properties.{ sessionID, requestID, reply }
           // CRITICAL: Clear activePermissionId FIRST to prevent race condition
-          // where permission.updated handler is still running async operations
-          const repliedPermissionId = event.properties?.permissionID;
+          // where permission.updated/asked handler is still running async operations
+          const repliedPermissionId = event.properties?.permissionID || event.properties?.requestID;
+          const response = event.properties?.response || event.properties?.reply;
           
           // Match if IDs are equal, or if we have an active permission with unknown ID (undefined)
-          // (This happens if permission.updated received an event without permissionID)
+          // (This happens if permission.updated/asked received an event without permissionID)
           if (activePermissionId === repliedPermissionId || activePermissionId === undefined) {
             activePermissionId = null;
             debugLog(`Permission replied: cleared activePermissionId ${repliedPermissionId || '(unknown)'}`);
           }
           lastUserActivityTime = Date.now();
           cancelPendingReminder('permission'); // Cancel permission-specific reminder
-          debugLog(`Permission replied: ${event.type} (response=${event.properties?.response}) - cancelled permission reminder`);
+          debugLog(`Permission replied: ${event.type} (response=${response}) - cancelled permission reminder`);
         }
         
         if (event.type === "session.created") {
@@ -420,24 +427,28 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         // ========================================
         // NOTIFICATION 2: Permission Request
         // ========================================
-        if (event.type === "permission.updated") {
+        // NOTE: OpenCode SDK v1.1.1+ changed permission events:
+        //   - Old: "permission.updated" with properties.id
+        //   - New: "permission.asked" with properties.id
+        // We support both for backward compatibility.
+        if (event.type === "permission.updated" || event.type === "permission.asked") {
           // CRITICAL: Capture permissionID IMMEDIATELY (before any async work)
           // This prevents race condition where user responds before we finish notifying
-          // NOTE: In permission.updated, the property is 'id', but in permission.replied it is 'permissionID'
+          // NOTE: Both old and new SDK use 'id' in the permission event properties
           const permissionId = event.properties?.id;
           
           if (!permissionId) {
-             debugLog('permission.updated: permission ID missing. properties keys: ' + Object.keys(event.properties || {}).join(', '));
+             debugLog(`${event.type}: permission ID missing. properties keys: ` + Object.keys(event.properties || {}).join(', '));
           }
 
           activePermissionId = permissionId;
           
-          debugLog(`permission.updated: notifying (permissionId=${permissionId})`);
+          debugLog(`${event.type}: notifying (permissionId=${permissionId})`);
           await showToast("⚠️ Permission request requires your attention", "warning", 8000);
 
           // CHECK: Did user already respond while we were showing toast?
           if (activePermissionId !== permissionId) {
-            debugLog(`permission.updated: aborted - user already responded (activePermissionId cleared)`);
+            debugLog(`${event.type}: aborted - user already responded (activePermissionId cleared)`);
             return;
           }
 
@@ -451,7 +462,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           
           // Final check after smartNotify: if user responded during sound playback, cancel the scheduled reminder
           if (activePermissionId !== permissionId) {
-            debugLog(`permission.updated: user responded during notification - cancelling any scheduled reminder`);
+            debugLog(`${event.type}: user responded during notification - cancelling any scheduled reminder`);
             cancelPendingReminder('permission');
           }
         }
