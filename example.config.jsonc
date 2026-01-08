@@ -195,6 +195,55 @@
     ],
     
     // ============================================================
+    // QUESTION TOOL MESSAGES (SDK v1.1.7+ - Agent asking user questions)
+    // ============================================================
+    // The "question" tool allows the LLM to ask users questions during execution.
+    // This is useful for gathering preferences, clarifying instructions, or getting
+    // decisions on implementation choices.
+    
+    // Messages when agent asks user a question
+    "questionTTSMessages": [
+        "Hey! I have a question for you. Please check your screen.",
+        "Attention! I need your input to continue.",
+        "Quick question! Please take a look when you have a moment.",
+        "I need some clarification. Could you please respond?",
+        "Question time! Your input is needed to proceed."
+    ],
+    
+    // Messages for MULTIPLE questions (use {count} placeholder)
+    "questionTTSMessagesMultiple": [
+        "Hey! I have {count} questions for you. Please check your screen.",
+        "Attention! I need your input on {count} items to continue.",
+        "{count} questions need your attention. Please take a look!",
+        "I need some clarifications. There are {count} questions waiting for you.",
+        "Question time! {count} questions need your response to proceed."
+    ],
+    
+    // Reminder messages for questions (more urgent - used after delay)
+    "questionReminderTTSMessages": [
+        "Hey! I am still waiting for your answer. Please check the questions!",
+        "Reminder: There is a question waiting for your response.",
+        "Hello? I need your input to continue. Please respond when you can.",
+        "Still waiting for your answer! The task is on hold.",
+        "Your input is needed! Please check the pending question."
+    ],
+    
+    // Reminder messages for MULTIPLE questions (use {count} placeholder)
+    "questionReminderTTSMessagesMultiple": [
+        "Hey! I am still waiting for answers to {count} questions. Please respond!",
+        "Reminder: There are {count} questions waiting for your response.",
+        "Hello? I need your input on {count} items. Please respond when you can.",
+        "Still waiting for your answers on {count} questions! The task is on hold.",
+        "Your input is needed! {count} questions are pending your response."
+    ],
+    
+    // Delay (in seconds) before question reminder fires
+    "questionReminderDelaySeconds": 25,
+    
+    // Question batch window (ms) - how long to wait for more questions before notifying
+    "questionBatchWindowMs": 800,
+    
+    // ============================================================
     // SOUND FILES (For immediate notifications)
     // These are played first before TTS reminder kicks in
     // ============================================================
@@ -204,6 +253,7 @@
     
     "idleSound": "assets/Soft-high-tech-notification-sound-effect.mp3",
     "permissionSound": "assets/Machine-alert-beep-sound-effect.mp3",
+    "questionSound": "assets/Machine-alert-beep-sound-effect.mp3",
     
     // ============================================================
     // GENERAL SETTINGS

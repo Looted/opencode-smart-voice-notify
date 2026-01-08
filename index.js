@@ -71,6 +71,25 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
   // Batch window duration in milliseconds (how long to wait for more permissions)
   const PERMISSION_BATCH_WINDOW_MS = config.permissionBatchWindowMs || 800;
 
+  // ========================================
+  // QUESTION BATCHING STATE (SDK v1.1.7+)
+  // Batches multiple simultaneous question requests into a single notification
+  // ========================================
+  
+  // Array of question request objects waiting to be notified (collected during batch window)
+  // Each object contains { id: string, questionCount: number } to track actual question count
+  let pendingQuestionBatch = [];
+  
+  // Timeout ID for the question batch window (debounce timer)
+  let questionBatchTimeout = null;
+  
+  // Batch window duration in milliseconds (how long to wait for more questions)
+  const QUESTION_BATCH_WINDOW_MS = config.questionBatchWindowMs || 800;
+  
+  // Track active question request to prevent race condition where user responds
+  // before async notification code runs. Set on question.asked, cleared on question.replied/rejected.
+  let activeQuestionId = null;
+
   /**
    * Write debug message to log file
    */
@@ -160,9 +179,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
   /**
    * Schedule a TTS reminder if user doesn't respond within configured delay.
    * The reminder uses a personalized TTS message.
-   * @param {string} type - 'idle' or 'permission'
+   * @param {string} type - 'idle', 'permission', or 'question'
    * @param {string} message - The TTS message to speak (used directly, supports count-aware messages)
-   * @param {object} options - Additional options (fallbackSound, permissionCount)
+   * @param {object} options - Additional options (fallbackSound, permissionCount, questionCount)
    */
   const scheduleTTSReminder = (type, message, options = {}) => {
     // Check if TTS reminders are enabled
@@ -172,18 +191,23 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     }
 
     // Get delay from config (in seconds, convert to ms)
-    const delaySeconds = type === 'permission' 
-      ? (config.permissionReminderDelaySeconds || config.ttsReminderDelaySeconds || 30)
-      : (config.idleReminderDelaySeconds || config.ttsReminderDelaySeconds || 30);
+    let delaySeconds;
+    if (type === 'permission') {
+      delaySeconds = config.permissionReminderDelaySeconds || config.ttsReminderDelaySeconds || 30;
+    } else if (type === 'question') {
+      delaySeconds = config.questionReminderDelaySeconds || config.ttsReminderDelaySeconds || 25;
+    } else {
+      delaySeconds = config.idleReminderDelaySeconds || config.ttsReminderDelaySeconds || 30;
+    }
     const delayMs = delaySeconds * 1000;
 
     // Cancel any existing reminder of this type
     cancelPendingReminder(type);
 
-    // Store permission count for generating count-aware messages in reminders
-    const permissionCount = options.permissionCount || 1;
+    // Store count for generating count-aware messages in reminders
+    const itemCount = options.permissionCount || options.questionCount || 1;
 
-    debugLog(`scheduleTTSReminder: scheduling ${type} TTS in ${delaySeconds}s (count=${permissionCount})`);
+    debugLog(`scheduleTTSReminder: scheduling ${type} TTS in ${delaySeconds}s (count=${itemCount})`);
 
     const timeoutId = setTimeout(async () => {
       try {
@@ -201,14 +225,16 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           return;
         }
 
-        debugLog(`scheduleTTSReminder: firing ${type} TTS reminder (count=${reminder?.permissionCount || 1})`);
+        debugLog(`scheduleTTSReminder: firing ${type} TTS reminder (count=${reminder?.itemCount || 1})`);
         
         // Get the appropriate reminder message
-        // For permissions with count > 1, use the count-aware message generator
-        const storedCount = reminder?.permissionCount || 1;
+        // For permissions/questions with count > 1, use the count-aware message generator
+        const storedCount = reminder?.itemCount || 1;
         let reminderMessage;
         if (type === 'permission') {
           reminderMessage = getPermissionMessage(storedCount, true);
+        } else if (type === 'question') {
+          reminderMessage = getQuestionMessage(storedCount, true);
         } else {
           reminderMessage = getRandomMessage(config.idleReminderTTSMessages);
         }
@@ -257,10 +283,12 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               }
               
               // Use count-aware message for follow-ups too
-              const followUpStoredCount = followUpReminder?.permissionCount || 1;
+              const followUpStoredCount = followUpReminder?.itemCount || 1;
               let followUpMessage;
               if (type === 'permission') {
                 followUpMessage = getPermissionMessage(followUpStoredCount, true);
+              } else if (type === 'question') {
+                followUpMessage = getQuestionMessage(followUpStoredCount, true);
               } else {
                 followUpMessage = getRandomMessage(config.idleReminderTTSMessages);
               }
@@ -279,7 +307,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               timeoutId: followUpTimeoutId,
               scheduledAt: Date.now(),
               followUpCount,
-              permissionCount: storedCount  // Preserve the count for follow-ups
+              itemCount: storedCount  // Preserve the count for follow-ups
             });
           }
         }
@@ -289,18 +317,18 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       }
     }, delayMs);
 
-    // Store the pending reminder with permission count
+    // Store the pending reminder with item count
     pendingReminders.set(type, {
       timeoutId,
       scheduledAt: Date.now(),
       followUpCount: 0,
-      permissionCount  // Store count for later use
+      itemCount  // Store count for later use
     });
   };
 
   /**
    * Smart notification: play sound first, then schedule TTS reminder
-   * @param {string} type - 'idle' or 'permission'
+   * @param {string} type - 'idle', 'permission', or 'question'
    * @param {object} options - Notification options
    */
   const smartNotify = async (type, options = {}) => {
@@ -309,7 +337,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       soundLoops = 1,
       ttsMessage,
       fallbackSound,
-      permissionCount = 1  // Support permission count for batched notifications
+      permissionCount = 1,  // Support permission count for batched notifications
+      questionCount = 1     // Support question count for batched notifications
     } = options;
 
     // Step 1: Play the immediate sound notification
@@ -328,17 +357,27 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       debugLog(`smartNotify: permission handled during sound - aborting reminder`);
       return;
     }
+    // For question notifications: check if the question was already answered/rejected
+    if (type === 'question' && !activeQuestionId) {
+      debugLog(`smartNotify: question handled during sound - aborting reminder`);
+      return;
+    }
 
     // Step 2: Schedule TTS reminder if user doesn't respond
     if (config.enableTTSReminder && ttsMessage) {
-      scheduleTTSReminder(type, ttsMessage, { fallbackSound, permissionCount });
+      scheduleTTSReminder(type, ttsMessage, { fallbackSound, permissionCount, questionCount });
     }
     
     // Step 3: If TTS-first mode is enabled, also speak immediately
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-      const immediateMessage = type === 'permission'
-        ? getRandomMessage(config.permissionTTSMessages)
-        : getRandomMessage(config.idleTTSMessages);
+      let immediateMessage;
+      if (type === 'permission') {
+        immediateMessage = getRandomMessage(config.permissionTTSMessages);
+      } else if (type === 'question') {
+        immediateMessage = getRandomMessage(config.questionTTSMessages);
+      } else {
+        immediateMessage = getRandomMessage(config.idleTTSMessages);
+      }
       
       await tts.speak(immediateMessage, {
         enableTTS: true,
@@ -374,6 +413,37 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       } else {
         // Fallback: generate a dynamic message
         return `Attention! There are ${count} permission requests waiting for your approval.`;
+      }
+    }
+  };
+
+  /**
+   * Get a count-aware TTS message for question requests (SDK v1.1.7+)
+   * @param {number} count - Number of question requests
+   * @param {boolean} isReminder - Whether this is a reminder message
+   * @returns {string} The formatted message
+   */
+  const getQuestionMessage = (count, isReminder = false) => {
+    const messages = isReminder 
+      ? config.questionReminderTTSMessages 
+      : config.questionTTSMessages;
+    
+    if (count === 1) {
+      // Single question - use regular message
+      return getRandomMessage(messages);
+    } else {
+      // Multiple questions - use count-aware messages if available, or format dynamically
+      const countMessages = isReminder
+        ? config.questionReminderTTSMessagesMultiple
+        : config.questionTTSMessagesMultiple;
+      
+      if (countMessages && countMessages.length > 0) {
+        // Use configured multi-question messages (replace {count} placeholder)
+        const template = getRandomMessage(countMessages);
+        return template.replace('{count}', count.toString());
+      } else {
+        // Fallback: generate a dynamic message
+        return `Hey! I have ${count} questions for you. Please check your screen.`;
       }
     }
   };
@@ -449,6 +519,81 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     }
   };
 
+  /**
+   * Process the batched question requests as a single notification (SDK v1.1.7+)
+   * Called after the batch window expires
+   */
+  const processQuestionBatch = async () => {
+    // Capture and clear the batch
+    const batch = [...pendingQuestionBatch];
+    pendingQuestionBatch = [];
+    questionBatchTimeout = null;
+    
+    if (batch.length === 0) {
+      debugLog('processQuestionBatch: empty batch, skipping');
+      return;
+    }
+
+    // Calculate total number of questions across all batched requests
+    // Each batch item is { id, questionCount } where questionCount is the number of questions in that request
+    const totalQuestionCount = batch.reduce((sum, item) => sum + (item.questionCount || 1), 0);
+    
+    debugLog(`processQuestionBatch: processing ${batch.length} request(s) with ${totalQuestionCount} total question(s)`);
+    
+    // Set activeQuestionId to the first one (for race condition checks)
+    // We track all IDs in the batch for proper cleanup
+    activeQuestionId = batch[0]?.id;
+    
+    // Show toast with count
+    const toastMessage = totalQuestionCount === 1
+      ? "❓ The agent has a question for you"
+      : `❓ The agent has ${totalQuestionCount} questions for you`;
+    await showToast(toastMessage, "info", 8000);
+
+    // CHECK: Did user already respond while we were showing toast?
+    if (pendingQuestionBatch.length > 0) {
+      // New questions arrived during toast - they'll be handled in next batch
+      debugLog('processQuestionBatch: new questions arrived during toast');
+    }
+    
+    // Check if any question was already replied to or rejected
+    if (activeQuestionId === null) {
+      debugLog('processQuestionBatch: aborted - user already responded');
+      return;
+    }
+
+    // Get count-aware TTS message (uses total question count, not request count)
+    const ttsMessage = getQuestionMessage(totalQuestionCount, false);
+    const reminderMessage = getQuestionMessage(totalQuestionCount, true);
+
+    // Smart notification: sound first, TTS reminder later
+    // Sound plays 2 times by default (matching permission behavior)
+    await smartNotify('question', {
+      soundFile: config.questionSound,
+      soundLoops: 2, // Fixed at 2 loops to match permission sound behavior
+      ttsMessage: reminderMessage,
+      fallbackSound: config.questionSound,
+      // Pass count for use in reminders
+      questionCount: totalQuestionCount
+    });
+    
+    // Speak immediately if in TTS-first or both mode (with count-aware message)
+    if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
+      await tts.wakeMonitor();
+      await tts.forceVolume();
+      await tts.speak(ttsMessage, {
+        enableTTS: true,
+        fallbackSound: config.questionSound
+      });
+    }
+    
+    // Final check: if user responded during notification, cancel scheduled reminder
+    if (activeQuestionId === null) {
+      debugLog('processQuestionBatch: user responded during notification - cancelling reminder');
+      cancelPendingReminder('question');
+    }
+  };
+
   return {
     event: async ({ event }) => {
       try {
@@ -456,13 +601,16 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         // USER ACTIVITY DETECTION
         // Cancels pending TTS reminders when user responds
         // ========================================
-        // NOTE: OpenCode event types (supporting SDK v1.0.x and v1.1.x):
+        // NOTE: OpenCode event types (supporting SDK v1.0.x, v1.1.x, and v1.1.7+):
         //   - message.updated: fires when a message is added/updated (use properties.info.role to check user vs assistant)
         //   - permission.updated (SDK v1.0.x): fires when a permission request is created
         //   - permission.asked (SDK v1.1.1+): fires when a permission request is created (replaces permission.updated)
         //   - permission.replied: fires when user responds to a permission request
         //     - SDK v1.0.x: uses permissionID, response
         //     - SDK v1.1.1+: uses requestID, reply
+        //   - question.asked (SDK v1.1.7+): fires when agent asks user a question
+        //   - question.replied (SDK v1.1.7+): fires when user answers a question
+        //   - question.rejected (SDK v1.1.7+): fires when user dismisses a question
         //   - session.created: fires when a new session starts
         //
         // CRITICAL: message.updated fires for EVERY modification to a message (not just creation).
@@ -546,6 +694,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           lastUserActivityTime = Date.now();
           lastSessionIdleTime = 0;
           activePermissionId = null;
+          activeQuestionId = null;
           seenUserMessageIds.clear();
           cancelAllPendingReminders();
           
@@ -554,6 +703,13 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           if (permissionBatchTimeout) {
             clearTimeout(permissionBatchTimeout);
             permissionBatchTimeout = null;
+          }
+          
+          // Reset question batch state
+          pendingQuestionBatch = [];
+          if (questionBatchTimeout) {
+            clearTimeout(questionBatchTimeout);
+            questionBatchTimeout = null;
           }
           
           debugLog(`Session created: ${event.type} - reset all tracking state`);
@@ -632,6 +788,113 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           }, PERMISSION_BATCH_WINDOW_MS);
           
           debugLog(`${event.type}: batch window reset (will process in ${PERMISSION_BATCH_WINDOW_MS}ms if no more arrive)`);
+        }
+
+        // ========================================
+        // NOTIFICATION 3: Question Request (BATCHED) - SDK v1.1.7+
+        // ========================================
+        // The "question" tool allows the LLM to ask users questions during execution.
+        // Events: question.asked, question.replied, question.rejected
+        //
+        // BATCHING: When multiple question requests arrive simultaneously,
+        // we batch them into a single notification instead of playing overlapping sounds.
+        // NOTE: Each question.asked event can contain multiple questions in its questions array.
+        if (event.type === "question.asked") {
+          // Capture question request ID and count of questions in this request
+          const questionId = event.properties?.id;
+          const questionsArray = event.properties?.questions;
+          const questionCount = Array.isArray(questionsArray) ? questionsArray.length : 1;
+          
+          if (!questionId) {
+            debugLog(`${event.type}: question ID missing. properties keys: ` + Object.keys(event.properties || {}).join(', '));
+          }
+
+          // Add to the pending batch (avoid duplicates by checking ID)
+          // Store as object with id and questionCount for proper counting
+          const existingIndex = pendingQuestionBatch.findIndex(item => item.id === questionId);
+          if (questionId && existingIndex === -1) {
+            pendingQuestionBatch.push({ id: questionId, questionCount });
+            debugLog(`${event.type}: added ${questionId} with ${questionCount} question(s) to batch (now ${pendingQuestionBatch.length} request(s) pending)`);
+          } else if (!questionId) {
+            // If no ID, still count it (use a placeholder)
+            pendingQuestionBatch.push({ id: `unknown-${Date.now()}`, questionCount });
+            debugLog(`${event.type}: added unknown question request with ${questionCount} question(s) to batch (now ${pendingQuestionBatch.length} request(s) pending)`);
+          }
+          
+          // Reset the batch window timer (debounce)
+          // This gives more questions a chance to arrive before we notify
+          if (questionBatchTimeout) {
+            clearTimeout(questionBatchTimeout);
+          }
+          
+          questionBatchTimeout = setTimeout(async () => {
+            try {
+              await processQuestionBatch();
+            } catch (e) {
+              debugLog(`processQuestionBatch error: ${e.message}`);
+            }
+          }, QUESTION_BATCH_WINDOW_MS);
+          
+          debugLog(`${event.type}: batch window reset (will process in ${QUESTION_BATCH_WINDOW_MS}ms if no more arrive)`);
+        }
+
+        // Handle question.replied - user answered the question(s)
+        if (event.type === "question.replied") {
+          const repliedQuestionId = event.properties?.requestID;
+          const answers = event.properties?.answers;
+          
+          // Remove this question from the pending batch (if still waiting)
+          // pendingQuestionBatch is now an array of { id, questionCount } objects
+          const existingIndex = pendingQuestionBatch.findIndex(item => item.id === repliedQuestionId);
+          if (repliedQuestionId && existingIndex !== -1) {
+            pendingQuestionBatch.splice(existingIndex, 1);
+            debugLog(`Question replied: removed ${repliedQuestionId} from pending batch (${pendingQuestionBatch.length} remaining)`);
+          }
+          
+          // If batch is now empty and we have a pending batch timeout, we can cancel it
+          if (pendingQuestionBatch.length === 0 && questionBatchTimeout) {
+            clearTimeout(questionBatchTimeout);
+            questionBatchTimeout = null;
+            debugLog('Question replied: cancelled batch timeout (all questions handled)');
+          }
+          
+          // Clear active question ID
+          if (activeQuestionId === repliedQuestionId || activeQuestionId === undefined) {
+            activeQuestionId = null;
+            debugLog(`Question replied: cleared activeQuestionId ${repliedQuestionId || '(unknown)'}`);
+          }
+          lastUserActivityTime = Date.now();
+          cancelPendingReminder('question'); // Cancel question-specific reminder
+          debugLog(`Question replied: ${event.type} (answers=${JSON.stringify(answers)}) - cancelled question reminder`);
+        }
+
+        // Handle question.rejected - user dismissed the question
+        if (event.type === "question.rejected") {
+          const rejectedQuestionId = event.properties?.requestID;
+          
+          // Remove this question from the pending batch (if still waiting)
+          // pendingQuestionBatch is now an array of { id, questionCount } objects
+          const existingIndex = pendingQuestionBatch.findIndex(item => item.id === rejectedQuestionId);
+          if (rejectedQuestionId && existingIndex !== -1) {
+            pendingQuestionBatch.splice(existingIndex, 1);
+            debugLog(`Question rejected: removed ${rejectedQuestionId} from pending batch (${pendingQuestionBatch.length} remaining)`);
+          }
+          
+          // If batch is now empty and we have a pending batch timeout, we can cancel it
+          if (pendingQuestionBatch.length === 0 && questionBatchTimeout) {
+            clearTimeout(questionBatchTimeout);
+            questionBatchTimeout = null;
+            debugLog('Question rejected: cancelled batch timeout (all questions handled)');
+          }
+          
+          // Clear active question ID
+          if (activeQuestionId === rejectedQuestionId || activeQuestionId === undefined) {
+            activeQuestionId = null;
+            debugLog(`Question rejected: cleared activeQuestionId ${rejectedQuestionId || '(unknown)'}`);
+          }
+          lastUserActivityTime = Date.now();
+          cancelPendingReminder('question'); // Cancel question-specific reminder
+          debugLog(`Question rejected: ${event.type} - cancelled question reminder`);
         }
       } catch (e) {
         debugLog(`event handler error: ${e.message}`);
