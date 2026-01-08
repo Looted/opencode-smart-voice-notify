@@ -33,6 +33,7 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 - Per-notification type delays (permission requests are more urgent)
 - **Smart Quota Handling**: Automatically falls back to free Edge TTS if ElevenLabs quota is exceeded
 - **Permission Batching**: Multiple simultaneous permission requests are batched into a single notification (e.g., "5 permission requests require your attention")
+- **Question Tool Support** (SDK v1.1.7+): Notifies when the agent asks questions and needs user input
 
 ### System Integration
 - **Native Edge TTS**: No external dependencies (Python/pip) required
@@ -257,10 +258,13 @@ See `example.config.jsonc` for more details.
 | `permission.asked` | Permission request (SDK v1.1.1+) - alert user |
 | `permission.updated` | Permission request (SDK v1.0.x) - alert user |
 | `permission.replied` | User responded - cancel pending reminders |
+| `question.asked` | Agent asks question (SDK v1.1.7+) - notify user |
+| `question.replied` | User answered question - cancel pending reminders |
+| `question.rejected` | User dismissed question - cancel pending reminders |
 | `message.updated` | New user message - cancel pending reminders |
 | `session.created` | New session - reset state |
 
-> **Note**: The plugin supports both OpenCode SDK v1.0.x and v1.1.x for backward compatibility.
+> **Note**: The plugin supports OpenCode SDK v1.0.x, v1.1.x, and v1.1.7+ for backward compatibility.
 
 ## Development
 
