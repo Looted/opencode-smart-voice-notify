@@ -24,10 +24,21 @@ export async function generateAIMessage(promptType, context = {}) {
   }
   
   // Get the prompt for this type
-  const prompt = config.aiPrompts?.[promptType];
+  let prompt = config.aiPrompts?.[promptType];
   if (!prompt) {
-    console.error(`[AI Messages] No prompt configured for type: ${promptType}`);
     return null;
+  }
+  
+  // Inject count context if multiple items
+  if (context.count && context.count > 1) {
+    // Use type-specific terminology
+    let itemType = 'items';
+    if (context.type === 'question') {
+      itemType = 'questions';
+    } else if (context.type === 'permission') {
+      itemType = 'permission requests';
+    }
+    prompt = `${prompt} Important: There are ${context.count} ${itemType} (not just one) waiting for the user's attention. Mention the count in your message.`;
   }
   
   try {
@@ -72,8 +83,6 @@ export async function generateAIMessage(promptType, context = {}) {
     clearTimeout(timeout);
     
     if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      console.error(`[AI Messages] API error ${response.status}: ${errorText}`);
       return null;
     }
     
@@ -83,7 +92,6 @@ export async function generateAIMessage(promptType, context = {}) {
     const message = data.choices?.[0]?.message?.content?.trim();
     
     if (!message) {
-      console.error('[AI Messages] Empty response from AI');
       return null;
     }
     
@@ -92,18 +100,12 @@ export async function generateAIMessage(promptType, context = {}) {
     
     // Validate message length (sanity check)
     if (cleanMessage.length < 5 || cleanMessage.length > 200) {
-      console.error(`[AI Messages] Message length invalid: ${cleanMessage.length} chars`);
       return null;
     }
     
     return cleanMessage;
     
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.error(`[AI Messages] Request timed out after ${config.aiTimeout || 15000}ms`);
-    } else {
-      console.error(`[AI Messages] Error: ${error.message}`);
-    }
     return null;
   }
 }
@@ -127,14 +129,10 @@ export async function getSmartMessage(eventType, isReminder, staticMessages, con
     try {
       const aiMessage = await generateAIMessage(promptType, context);
       if (aiMessage) {
-        // Log success for debugging
-        if (config.debugLog) {
-          console.log(`[AI Messages] Generated: ${aiMessage}`);
-        }
         return aiMessage;
       }
     } catch (error) {
-      console.error(`[AI Messages] Generation failed: ${error.message}`);
+      // Silently fall through to fallback
     }
     
     // Check if fallback is disabled

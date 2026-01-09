@@ -357,8 +357,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       soundLoops = 1,
       ttsMessage,
       fallbackSound,
-      permissionCount = 1,  // Support permission count for batched notifications
-      questionCount = 1     // Support question count for batched notifications
+      permissionCount,  // Support permission count for batched notifications
+      questionCount       // Support question count for batched notifications
     } = options;
 
     // Step 1: Play the immediate sound notification
@@ -418,27 +418,30 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       ? config.permissionReminderTTSMessages 
       : config.permissionTTSMessages;
     
+    // If AI messages are enabled, ALWAYS try AI first (regardless of count)
+    if (config.enableAIMessages) {
+      const aiMessage = await getSmartMessage('permission', isReminder, messages, { count, type: 'permission' });
+      // getSmartMessage returns static message as fallback, so if AI was attempted
+      // and succeeded, we'll get the AI message. If it failed, we get static.
+      // Check if we got a valid message (not the generic fallback)
+      if (aiMessage && aiMessage !== 'Notification') {
+        return aiMessage;
+      }
+    }
+    
+    // Fallback to static messages (AI disabled or failed with generic fallback)
     if (count === 1) {
-      // Single permission - use smart message (AI or static fallback)
-      return await getSmartMessage('permission', isReminder, messages, { count });
+      return getRandomMessage(messages);
     } else {
-      // Multiple permissions - use count-aware messages if available, or format dynamically
       const countMessages = isReminder
         ? config.permissionReminderTTSMessagesMultiple
         : config.permissionTTSMessagesMultiple;
       
       if (countMessages && countMessages.length > 0) {
-        // Use configured multi-permission messages (replace {count} placeholder)
         const template = getRandomMessage(countMessages);
         return template.replace('{count}', count.toString());
-      } else {
-        // Try AI message with count context, fallback to dynamic message
-        const aiMessage = await getSmartMessage('permission', isReminder, [], { count });
-        if (aiMessage !== 'Notification') {
-          return aiMessage;
-        }
-        return `Attention! There are ${count} permission requests waiting for your approval.`;
       }
+      return `Attention! There are ${count} permission requests waiting for your approval.`;
     }
   };
 
@@ -454,33 +457,39 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       ? config.questionReminderTTSMessages 
       : config.questionTTSMessages;
     
+    // If AI messages are enabled, ALWAYS try AI first (regardless of count)
+    if (config.enableAIMessages) {
+      const aiMessage = await getSmartMessage('question', isReminder, messages, { count, type: 'question' });
+      // getSmartMessage returns static message as fallback, so if AI was attempted
+      // and succeeded, we'll get the AI message. If it failed, we get static.
+      // Check if we got a valid message (not the generic fallback)
+      if (aiMessage && aiMessage !== 'Notification') {
+        return aiMessage;
+      }
+    }
+    
+    // Fallback to static messages (AI disabled or failed with generic fallback)
     if (count === 1) {
-      // Single question - use smart message (AI or static fallback)
-      return await getSmartMessage('question', isReminder, messages, { count });
+      return getRandomMessage(messages);
     } else {
-      // Multiple questions - use count-aware messages if available, or format dynamically
       const countMessages = isReminder
         ? config.questionReminderTTSMessagesMultiple
         : config.questionTTSMessagesMultiple;
       
       if (countMessages && countMessages.length > 0) {
-        // Use configured multi-question messages (replace {count} placeholder)
         const template = getRandomMessage(countMessages);
         return template.replace('{count}', count.toString());
-      } else {
-        // Try AI message with count context, fallback to dynamic message
-        const aiMessage = await getSmartMessage('question', isReminder, [], { count });
-        if (aiMessage !== 'Notification') {
-          return aiMessage;
-        }
-        return `Hey! I have ${count} questions for you. Please check your screen.`;
       }
+      return `Hey! I have ${count} questions for you. Please check your screen.`;
     }
   };
 
   /**
    * Process the batched permission requests as a single notification
    * Called after the batch window expires
+   * 
+   * FIX: Play sound IMMEDIATELY before any AI generation to avoid delay.
+   * AI message generation can take 3-15+ seconds, which was delaying sound playback.
    */
   const processPermissionBatch = async () => {
     // Capture and clear the batch
@@ -500,40 +509,42 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     // We track all IDs in the batch for proper cleanup
     activePermissionId = batch[0];
     
-    // Show toast with count
+    // Step 1: Show toast IMMEDIATELY (fire and forget - no await)
     const toastMessage = batchCount === 1
       ? "⚠️ Permission request requires your attention"
       : `⚠️ ${batchCount} permission requests require your attention`;
-    await showToast(toastMessage, "warning", 8000);
+    showToast(toastMessage, "warning", 8000);  // No await - instant display
+    
+    // Step 2: Play sound (after toast is triggered)
+    const soundLoops = batchCount === 1 ? 2 : Math.min(3, batchCount);
+    await playSound(config.permissionSound, soundLoops);
 
-    // CHECK: Did user already respond while we were showing toast?
+    // CHECK: Did user already respond while sound was playing?
     if (pendingPermissionBatch.length > 0) {
-      // New permissions arrived during toast - they'll be handled in next batch
-      debugLog('processPermissionBatch: new permissions arrived during toast');
+      // New permissions arrived during sound - they'll be handled in next batch
+      debugLog('processPermissionBatch: new permissions arrived during sound');
     }
     
-    // Check if any permission was already replied to
+    // Step 3: Check race condition - did user respond during sound?
     if (activePermissionId === null) {
-      debugLog('processPermissionBatch: aborted - user already responded');
+      debugLog('processPermissionBatch: user responded during sound - aborting');
       return;
     }
 
-    // Get count-aware TTS message
-    const ttsMessage = await getPermissionMessage(batchCount, false);
+    // Step 4: Generate AI message for reminder AFTER sound played
     const reminderMessage = await getPermissionMessage(batchCount, true);
-
-    // Smart notification: sound first, TTS reminder later
-    await smartNotify('permission', {
-      soundFile: config.permissionSound,
-      soundLoops: batchCount === 1 ? 2 : Math.min(3, batchCount), // More loops for more permissions
-      ttsMessage: reminderMessage,
-      fallbackSound: config.permissionSound,
-      // Pass count for potential use in notification
-      permissionCount: batchCount
-    });
     
-    // Speak immediately if in TTS-first or both mode (with count-aware message)
+    // Step 5: Schedule TTS reminder if enabled
+    if (config.enableTTSReminder && reminderMessage) {
+      scheduleTTSReminder('permission', reminderMessage, {
+        fallbackSound: config.permissionSound,
+        permissionCount: batchCount
+      });
+    }
+    
+    // Step 6: If TTS-first or both mode, generate and speak immediate message
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
+      const ttsMessage = await getPermissionMessage(batchCount, false);
       await tts.wakeMonitor();
       await tts.forceVolume();
       await tts.speak(ttsMessage, {
@@ -552,6 +563,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
   /**
    * Process the batched question requests as a single notification (SDK v1.1.7+)
    * Called after the batch window expires
+   * 
+   * FIX: Play sound IMMEDIATELY before any AI generation to avoid delay.
+   * AI message generation can take 3-15+ seconds, which was delaying sound playback.
    */
   const processQuestionBatch = async () => {
     // Capture and clear the batch
@@ -574,41 +588,41 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     // We track all IDs in the batch for proper cleanup
     activeQuestionId = batch[0]?.id;
     
-    // Show toast with count
+    // Step 1: Show toast IMMEDIATELY (fire and forget - no await)
     const toastMessage = totalQuestionCount === 1
       ? "❓ The agent has a question for you"
       : `❓ The agent has ${totalQuestionCount} questions for you`;
-    await showToast(toastMessage, "info", 8000);
+    showToast(toastMessage, "info", 8000);  // No await - instant display
+    
+    // Step 2: Play sound (after toast is triggered)
+    await playSound(config.questionSound, 2);
 
-    // CHECK: Did user already respond while we were showing toast?
+    // CHECK: Did user already respond while sound was playing?
     if (pendingQuestionBatch.length > 0) {
-      // New questions arrived during toast - they'll be handled in next batch
-      debugLog('processQuestionBatch: new questions arrived during toast');
+      // New questions arrived during sound - they'll be handled in next batch
+      debugLog('processQuestionBatch: new questions arrived during sound');
     }
     
-    // Check if any question was already replied to or rejected
+    // Step 3: Check race condition - did user respond during sound?
     if (activeQuestionId === null) {
-      debugLog('processQuestionBatch: aborted - user already responded');
+      debugLog('processQuestionBatch: user responded during sound - aborting');
       return;
     }
 
-    // Get count-aware TTS message (uses total question count, not request count)
-    const ttsMessage = await getQuestionMessage(totalQuestionCount, false);
+    // Step 4: Generate AI message for reminder AFTER sound played
     const reminderMessage = await getQuestionMessage(totalQuestionCount, true);
 
-    // Smart notification: sound first, TTS reminder later
-    // Sound plays 2 times by default (matching permission behavior)
-    await smartNotify('question', {
-      soundFile: config.questionSound,
-      soundLoops: 2, // Fixed at 2 loops to match permission sound behavior
-      ttsMessage: reminderMessage,
-      fallbackSound: config.questionSound,
-      // Pass count for use in reminders
-      questionCount: totalQuestionCount
-    });
+    // Step 5: Schedule TTS reminder if enabled
+    if (config.enableTTSReminder && reminderMessage) {
+      scheduleTTSReminder('question', reminderMessage, {
+        fallbackSound: config.questionSound,
+        questionCount: totalQuestionCount
+      });
+    }
     
-    // Speak immediately if in TTS-first or both mode (with count-aware message)
+    // Step 6: If TTS-first or both mode, generate and speak immediate message
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
+      const ttsMessage = await getQuestionMessage(totalQuestionCount, false);
       await tts.wakeMonitor();
       await tts.forceVolume();
       await tts.speak(ttsMessage, {
@@ -747,6 +761,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
         // ========================================
         // NOTIFICATION 1: Session Idle (Agent Finished)
+        // 
+        // FIX: Play sound IMMEDIATELY before any AI generation to avoid delay.
+        // AI message generation can take 3-15+ seconds, which was delaying sound playback.
         // ========================================
         if (event.type === "session.idle") {
           const sessionID = event.properties?.sessionID;
@@ -764,18 +781,42 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           lastSessionIdleTime = Date.now();
           
           debugLog(`session.idle: notifying for session ${sessionID} (idleTime=${lastSessionIdleTime})`);
-          await showToast("✅ Agent has finished working", "success", 5000);
+          
+          // Step 1: Show toast IMMEDIATELY (fire and forget - no await)
+          showToast("✅ Agent has finished working", "success", 5000);  // No await - instant display
+          
+          // Step 2: Play sound (after toast is triggered)
+          // Only play sound in sound-first, sound-only, or both mode
+          if (config.notificationMode !== 'tts-first') {
+            await playSound(config.idleSound, 1);
+          }
+          
+          // Step 3: Check race condition - did user respond during sound?
+          if (lastUserActivityTime > lastSessionIdleTime) {
+            debugLog(`session.idle: user active during sound - aborting`);
+            return;
+          }
 
-          // Get smart message for idle notification (AI or static fallback)
-          const idleTtsMessage = await getSmartMessage('idle', false, config.idleTTSMessages);
+          // Step 4: Generate AI message for reminder AFTER sound played
+          const reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
 
-          // Smart notification: sound first, TTS reminder later
-          await smartNotify('idle', {
-            soundFile: config.idleSound,
-            soundLoops: 1,
-            ttsMessage: idleTtsMessage,
-            fallbackSound: config.idleSound
-          });
+          // Step 5: Schedule TTS reminder if enabled
+          if (config.enableTTSReminder && reminderMessage) {
+            scheduleTTSReminder('idle', reminderMessage, {
+              fallbackSound: config.idleSound
+            });
+          }
+          
+          // Step 6: If TTS-first or both mode, generate and speak immediate message
+          if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
+            const ttsMessage = await getSmartMessage('idle', false, config.idleTTSMessages);
+            await tts.wakeMonitor();
+            await tts.forceVolume();
+            await tts.speak(ttsMessage, {
+              enableTTS: true,
+              fallbackSound: config.idleSound
+            });
+          }
         }
 
         // ========================================
