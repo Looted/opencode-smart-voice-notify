@@ -60,6 +60,13 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     "_configVersion": "${version}",
 
     // ============================================================
+    // PLUGIN ENABLE/DISABLE
+    // ============================================================
+    // Master switch to enable or disable the entire plugin.
+    // Set to false to disable all notifications without uninstalling.
+    "enabled": ${overrides.enabled !== undefined ? overrides.enabled : true},
+
+    // ============================================================
     // NOTIFICATION MODE SETTINGS (Smart Notification System)
     // ============================================================
     // Controls how notifications are delivered:

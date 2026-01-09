@@ -23,9 +23,28 @@ import { createTTS, getTTSConfig } from './util/tts.js';
  */
 export default async function SmartVoiceNotifyPlugin({ project, client, $, directory, worktree }) {
   const config = getTTSConfig();
+
+  // Master switch: if plugin is disabled, return empty handlers immediately
+  if (config.enabled === false) {
+    const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
+    const logsDir = path.join(configDir, 'logs');
+    const logFile = path.join(logsDir, 'smart-voice-notify-debug.log');
+    if (config.debugLog) {
+      try {
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true });
+        }
+        const timestamp = new Date().toISOString();
+        fs.appendFileSync(logFile, `[${timestamp}] Plugin disabled via config (enabled: false) - no event handlers registered\n`);
+      } catch (e) {}
+    }
+    return {};
+  }
+
   const tts = createTTS({ $, client });
 
   const platform = os.platform();
+
   const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
   const logsDir = path.join(configDir, 'logs');
   const logFile = path.join(logsDir, 'smart-voice-notify-debug.log');
