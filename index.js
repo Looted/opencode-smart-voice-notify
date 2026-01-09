@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { createTTS, getTTSConfig } from './util/tts.js';
+import { getSmartMessage } from './util/ai-messages.js';
 
 /**
  * OpenCode Smart Voice Notify Plugin
@@ -251,11 +252,11 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         const storedCount = reminder?.itemCount || 1;
         let reminderMessage;
         if (type === 'permission') {
-          reminderMessage = getPermissionMessage(storedCount, true);
+          reminderMessage = await getPermissionMessage(storedCount, true);
         } else if (type === 'question') {
-          reminderMessage = getQuestionMessage(storedCount, true);
+          reminderMessage = await getQuestionMessage(storedCount, true);
         } else {
-          reminderMessage = getRandomMessage(config.idleReminderTTSMessages);
+          reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
         }
 
         // Check for ElevenLabs API key configuration issues
@@ -305,11 +306,11 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               const followUpStoredCount = followUpReminder?.itemCount || 1;
               let followUpMessage;
               if (type === 'permission') {
-                followUpMessage = getPermissionMessage(followUpStoredCount, true);
+                followUpMessage = await getPermissionMessage(followUpStoredCount, true);
               } else if (type === 'question') {
-                followUpMessage = getQuestionMessage(followUpStoredCount, true);
+                followUpMessage = await getQuestionMessage(followUpStoredCount, true);
               } else {
-                followUpMessage = getRandomMessage(config.idleReminderTTSMessages);
+                followUpMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
               }
               
               await tts.wakeMonitor();
@@ -391,11 +392,11 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
       let immediateMessage;
       if (type === 'permission') {
-        immediateMessage = getRandomMessage(config.permissionTTSMessages);
+        immediateMessage = await getSmartMessage('permission', false, config.permissionTTSMessages);
       } else if (type === 'question') {
-        immediateMessage = getRandomMessage(config.questionTTSMessages);
+        immediateMessage = await getSmartMessage('question', false, config.questionTTSMessages);
       } else {
-        immediateMessage = getRandomMessage(config.idleTTSMessages);
+        immediateMessage = await getSmartMessage('idle', false, config.idleTTSMessages);
       }
       
       await tts.speak(immediateMessage, {
@@ -407,18 +408,19 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
   /**
    * Get a count-aware TTS message for permission requests
+   * Uses AI generation when enabled, falls back to static messages
    * @param {number} count - Number of permission requests
    * @param {boolean} isReminder - Whether this is a reminder message
-   * @returns {string} The formatted message
+   * @returns {Promise<string>} The formatted message
    */
-  const getPermissionMessage = (count, isReminder = false) => {
+  const getPermissionMessage = async (count, isReminder = false) => {
     const messages = isReminder 
       ? config.permissionReminderTTSMessages 
       : config.permissionTTSMessages;
     
     if (count === 1) {
-      // Single permission - use regular message
-      return getRandomMessage(messages);
+      // Single permission - use smart message (AI or static fallback)
+      return await getSmartMessage('permission', isReminder, messages, { count });
     } else {
       // Multiple permissions - use count-aware messages if available, or format dynamically
       const countMessages = isReminder
@@ -430,7 +432,11 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         const template = getRandomMessage(countMessages);
         return template.replace('{count}', count.toString());
       } else {
-        // Fallback: generate a dynamic message
+        // Try AI message with count context, fallback to dynamic message
+        const aiMessage = await getSmartMessage('permission', isReminder, [], { count });
+        if (aiMessage !== 'Notification') {
+          return aiMessage;
+        }
         return `Attention! There are ${count} permission requests waiting for your approval.`;
       }
     }
@@ -438,18 +444,19 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
   /**
    * Get a count-aware TTS message for question requests (SDK v1.1.7+)
+   * Uses AI generation when enabled, falls back to static messages
    * @param {number} count - Number of question requests
    * @param {boolean} isReminder - Whether this is a reminder message
-   * @returns {string} The formatted message
+   * @returns {Promise<string>} The formatted message
    */
-  const getQuestionMessage = (count, isReminder = false) => {
+  const getQuestionMessage = async (count, isReminder = false) => {
     const messages = isReminder 
       ? config.questionReminderTTSMessages 
       : config.questionTTSMessages;
     
     if (count === 1) {
-      // Single question - use regular message
-      return getRandomMessage(messages);
+      // Single question - use smart message (AI or static fallback)
+      return await getSmartMessage('question', isReminder, messages, { count });
     } else {
       // Multiple questions - use count-aware messages if available, or format dynamically
       const countMessages = isReminder
@@ -461,7 +468,11 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         const template = getRandomMessage(countMessages);
         return template.replace('{count}', count.toString());
       } else {
-        // Fallback: generate a dynamic message
+        // Try AI message with count context, fallback to dynamic message
+        const aiMessage = await getSmartMessage('question', isReminder, [], { count });
+        if (aiMessage !== 'Notification') {
+          return aiMessage;
+        }
         return `Hey! I have ${count} questions for you. Please check your screen.`;
       }
     }
@@ -508,8 +519,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     }
 
     // Get count-aware TTS message
-    const ttsMessage = getPermissionMessage(batchCount, false);
-    const reminderMessage = getPermissionMessage(batchCount, true);
+    const ttsMessage = await getPermissionMessage(batchCount, false);
+    const reminderMessage = await getPermissionMessage(batchCount, true);
 
     // Smart notification: sound first, TTS reminder later
     await smartNotify('permission', {
@@ -582,8 +593,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     }
 
     // Get count-aware TTS message (uses total question count, not request count)
-    const ttsMessage = getQuestionMessage(totalQuestionCount, false);
-    const reminderMessage = getQuestionMessage(totalQuestionCount, true);
+    const ttsMessage = await getQuestionMessage(totalQuestionCount, false);
+    const reminderMessage = await getQuestionMessage(totalQuestionCount, true);
 
     // Smart notification: sound first, TTS reminder later
     // Sound plays 2 times by default (matching permission behavior)
@@ -755,11 +766,14 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           debugLog(`session.idle: notifying for session ${sessionID} (idleTime=${lastSessionIdleTime})`);
           await showToast("✅ Agent has finished working", "success", 5000);
 
+          // Get smart message for idle notification (AI or static fallback)
+          const idleTtsMessage = await getSmartMessage('idle', false, config.idleTTSMessages);
+
           // Smart notification: sound first, TTS reminder later
           await smartNotify('idle', {
             soundFile: config.idleSound,
             soundLoops: 1,
-            ttsMessage: getRandomMessage(config.idleTTSMessages),
+            ttsMessage: idleTtsMessage,
             fallbackSound: config.idleSound
           });
         }
