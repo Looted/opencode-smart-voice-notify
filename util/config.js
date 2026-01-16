@@ -195,6 +195,35 @@ const getDefaultConfigObject = () => ({
   ],
   questionReminderDelaySeconds: 25,
   questionBatchWindowMs: 800,
+  errorTTSMessages: [
+    "Oops! Something went wrong. Please check for errors.",
+    "Alert! The agent encountered an error and needs your attention.",
+    "Error detected! Please review the issue when you can.",
+    "Houston, we have a problem! An error occurred during the task.",
+    "Heads up! There was an error that requires your attention."
+  ],
+  errorTTSMessagesMultiple: [
+    "Oops! There are {count} errors that need your attention.",
+    "Alert! The agent encountered {count} errors. Please review.",
+    "{count} errors detected! Please check when you can.",
+    "Houston, we have {count} problems! Multiple errors occurred.",
+    "Heads up! {count} errors require your attention."
+  ],
+  errorReminderTTSMessages: [
+    "Hey! There's still an error waiting for your attention.",
+    "Reminder: An error occurred and hasn't been addressed yet.",
+    "The agent is stuck! Please check the error when you can.",
+    "Still waiting! That error needs your attention.",
+    "Don't forget! There's an unresolved error in your session."
+  ],
+  errorReminderTTSMessagesMultiple: [
+    "Hey! There are still {count} errors waiting for your attention.",
+    "Reminder: {count} errors occurred and haven't been addressed yet.",
+    "The agent is stuck! Please check the {count} errors when you can.",
+    "Still waiting! {count} errors need your attention.",
+    "Don't forget! There are {count} unresolved errors in your session."
+  ],
+  errorReminderDelaySeconds: 20,
   enableAIMessages: false,
   aiEndpoint: 'http://localhost:11434/v1',
   aiModel: 'llama3',
@@ -205,13 +234,16 @@ const getDefaultConfigObject = () => ({
     idle: "Generate a single brief, friendly notification sentence (max 15 words) saying a coding task is complete. Be encouraging and warm. Output only the message, no quotes.",
     permission: "Generate a single brief, urgent but friendly notification sentence (max 15 words) asking the user to approve a permission request. Output only the message, no quotes.",
     question: "Generate a single brief, polite notification sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
+    error: "Generate a single brief, concerned but calm notification sentence (max 15 words) saying an error occurred and needs attention. Output only the message, no quotes.",
     idleReminder: "Generate a single brief, gentle reminder sentence (max 15 words) that a completed task is waiting for review. Be slightly more insistent. Output only the message, no quotes.",
     permissionReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey importance. Output only the message, no quotes.",
-    questionReminder: "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes."
+    questionReminder: "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes.",
+    errorReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Convey urgency. Output only the message, no quotes."
   },
   idleSound: 'assets/Soft-high-tech-notification-sound-effect.mp3',
   permissionSound: 'assets/Machine-alert-beep-sound-effect.mp3',
   questionSound: 'assets/Machine-alert-beep-sound-effect.mp3',
+  errorSound: 'assets/Machine-alert-beep-sound-effect.mp3',
   wakeMonitor: true,
   forceVolume: true,
   volumeThreshold: 50,
@@ -560,6 +592,51 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     "questionBatchWindowMs": ${overrides.questionBatchWindowMs !== undefined ? overrides.questionBatchWindowMs : 800},
     
     // ============================================================
+    // ERROR NOTIFICATION SETTINGS (Session Errors)
+    // ============================================================
+    // Notify users when the agent encounters an error during execution.
+    // Error notifications use more urgent messaging to get user attention.
+    
+    // Messages when agent encounters an error
+    "errorTTSMessages": ${formatJSON(overrides.errorTTSMessages || [
+        "Oops! Something went wrong. Please check for errors.",
+        "Alert! The agent encountered an error and needs your attention.",
+        "Error detected! Please review the issue when you can.",
+        "Houston, we have a problem! An error occurred during the task.",
+        "Heads up! There was an error that requires your attention."
+    ], 4)},
+    
+    // Messages for MULTIPLE errors (use {count} placeholder)
+    "errorTTSMessagesMultiple": ${formatJSON(overrides.errorTTSMessagesMultiple || [
+        "Oops! There are {count} errors that need your attention.",
+        "Alert! The agent encountered {count} errors. Please review.",
+        "{count} errors detected! Please check when you can.",
+        "Houston, we have {count} problems! Multiple errors occurred.",
+        "Heads up! {count} errors require your attention."
+    ], 4)},
+    
+    // Reminder messages for errors (more urgent - used after delay)
+    "errorReminderTTSMessages": ${formatJSON(overrides.errorReminderTTSMessages || [
+        "Hey! There's still an error waiting for your attention.",
+        "Reminder: An error occurred and hasn't been addressed yet.",
+        "The agent is stuck! Please check the error when you can.",
+        "Still waiting! That error needs your attention.",
+        "Don't forget! There's an unresolved error in your session."
+    ], 4)},
+    
+    // Reminder messages for MULTIPLE errors (use {count} placeholder)
+    "errorReminderTTSMessagesMultiple": ${formatJSON(overrides.errorReminderTTSMessagesMultiple || [
+        "Hey! There are still {count} errors waiting for your attention.",
+        "Reminder: {count} errors occurred and haven't been addressed yet.",
+        "The agent is stuck! Please check the {count} errors when you can.",
+        "Still waiting! {count} errors need your attention.",
+        "Don't forget! There are {count} unresolved errors in your session."
+    ], 4)},
+    
+    // Delay (in seconds) before error reminder fires (shorter than idle for urgency)
+    "errorReminderDelaySeconds": ${overrides.errorReminderDelaySeconds !== undefined ? overrides.errorReminderDelaySeconds : 20},
+    
+    // ============================================================
     // AI MESSAGE GENERATION (OpenAI-Compatible Endpoints)
     // ============================================================
     // Use a local/self-hosted AI to generate dynamic notification messages
@@ -602,9 +679,11 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
         "idle": "Generate a single brief, friendly notification sentence (max 15 words) saying a coding task is complete. Be encouraging and warm. Output only the message, no quotes.",
         "permission": "Generate a single brief, urgent but friendly notification sentence (max 15 words) asking the user to approve a permission request. Output only the message, no quotes.",
         "question": "Generate a single brief, polite notification sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
+        "error": "Generate a single brief, concerned but calm notification sentence (max 15 words) saying an error occurred and needs attention. Output only the message, no quotes.",
         "idleReminder": "Generate a single brief, gentle reminder sentence (max 15 words) that a completed task is waiting for review. Be slightly more insistent. Output only the message, no quotes.",
         "permissionReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey importance. Output only the message, no quotes.",
-        "questionReminder": "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes."
+        "questionReminder": "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes.",
+        "errorReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Convey urgency. Output only the message, no quotes."
     }, 4)},
     
     // ============================================================
@@ -618,6 +697,7 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     "idleSound": "${overrides.idleSound || 'assets/Soft-high-tech-notification-sound-effect.mp3'}",
     "permissionSound": "${overrides.permissionSound || 'assets/Machine-alert-beep-sound-effect.mp3'}",
     "questionSound": "${overrides.questionSound || 'assets/Machine-alert-beep-sound-effect.mp3'}",
+    "errorSound": "${overrides.errorSound || 'assets/Machine-alert-beep-sound-effect.mp3'}",
     
     // ============================================================
     // GENERAL SETTINGS
