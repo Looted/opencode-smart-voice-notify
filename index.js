@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { createTTS, getTTSConfig } from './util/tts.js';
 import { getSmartMessage } from './util/ai-messages.js';
+import { notifyTaskComplete, notifyPermissionRequest, notifyQuestion } from './util/desktop-notify.js';
 
 /**
  * OpenCode Smart Voice Notify Plugin
@@ -147,6 +148,48 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         });
       }
     } catch (e) {}
+  };
+
+  /**
+   * Send a desktop notification (if enabled).
+   * Desktop notifications are independent of sound/TTS and fire immediately.
+   * 
+   * @param {'idle' | 'permission' | 'question'} type - Notification type
+   * @param {string} message - Notification message
+   * @param {object} options - Additional options (count for permission/question)
+   */
+  const sendDesktopNotify = (type, message, options = {}) => {
+    if (!config.enableDesktopNotification) return;
+    
+    try {
+      // Build options with project name if configured
+      const notifyOptions = {
+        projectName: config.showProjectInNotification && project?.name ? project.name : undefined,
+        timeout: config.desktopNotificationTimeout || 5,
+        debugLog: config.debugLog,
+        count: options.count || 1
+      };
+      
+      // Fire and forget (no await) - desktop notification should not block other operations
+      // Use the appropriate helper function based on notification type
+      if (type === 'idle') {
+        notifyTaskComplete(message, notifyOptions).catch(e => {
+          debugLog(`Desktop notification error (idle): ${e.message}`);
+        });
+      } else if (type === 'permission') {
+        notifyPermissionRequest(message, notifyOptions).catch(e => {
+          debugLog(`Desktop notification error (permission): ${e.message}`);
+        });
+      } else if (type === 'question') {
+        notifyQuestion(message, notifyOptions).catch(e => {
+          debugLog(`Desktop notification error (question): ${e.message}`);
+        });
+      }
+      
+      debugLog(`sendDesktopNotify: sent ${type} notification`);
+    } catch (e) {
+      debugLog(`sendDesktopNotify error: ${e.message}`);
+    }
   };
 
   /**
@@ -515,6 +558,12 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       : `⚠️ ${batchCount} permission requests require your attention`;
     showToast(toastMessage, "warning", 8000);  // No await - instant display
     
+    // Step 1b: Send desktop notification (fire and forget - independent of sound/TTS)
+    const desktopMessage = batchCount === 1
+      ? 'Agent needs permission to proceed. Please review the request.'
+      : `${batchCount} permission requests are waiting for your approval.`;
+    sendDesktopNotify('permission', desktopMessage, { count: batchCount });
+    
     // Step 2: Play sound (after toast is triggered)
     const soundLoops = batchCount === 1 ? 2 : Math.min(3, batchCount);
     await playSound(config.permissionSound, soundLoops);
@@ -593,6 +642,12 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       ? "❓ The agent has a question for you"
       : `❓ The agent has ${totalQuestionCount} questions for you`;
     showToast(toastMessage, "info", 8000);  // No await - instant display
+    
+    // Step 1b: Send desktop notification (fire and forget - independent of sound/TTS)
+    const desktopMessage = totalQuestionCount === 1
+      ? 'The agent has a question and needs your input.'
+      : `The agent has ${totalQuestionCount} questions for you. Please check your screen.`;
+    sendDesktopNotify('question', desktopMessage, { count: totalQuestionCount });
     
     // Step 2: Play sound (after toast is triggered)
     await playSound(config.questionSound, 2);
@@ -784,6 +839,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           
           // Step 1: Show toast IMMEDIATELY (fire and forget - no await)
           showToast("✅ Agent has finished working", "success", 5000);  // No await - instant display
+          
+          // Step 1b: Send desktop notification (fire and forget - independent of sound/TTS)
+          sendDesktopNotify('idle', 'Agent has finished working. Your code is ready for review.');
           
           // Step 2: Play sound (after toast is triggered)
           // Only play sound in sound-first, sound-only, or both mode
