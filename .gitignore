@@ -21,3 +21,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Ralph - AI agent loop files
+.ralph-state.json
+.ralph-lock
+.ralph-done
