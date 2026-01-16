@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.31.0",
+    "detect-terminal": "^2.0.0",
     "msedge-tts": "^2.0.3",
     "node-notifier": "^10.0.1"
   },
