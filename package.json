@@ -43,10 +43,10 @@
     "bun": ">=1.0.0"
   },
   "dependencies": {
-    "@elevenlabs/elevenlabs-js": "^2.30.0",
+    "@elevenlabs/elevenlabs-js": "^2.31.0",
     "msedge-tts": "^2.0.3"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.1.8"
+    "@opencode-ai/plugin": "^1.1.23"
   }
 }
