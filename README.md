@@ -49,6 +49,7 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 - Auto-boost volume if too low
 - TUI toast notifications
 - Cross-platform support (Windows, macOS, Linux)
+- **Focus Detection** (macOS): Suppresses notifications when terminal is focused
 
 ## Installation
 
@@ -254,6 +255,17 @@ If you want dynamic, AI-generated notification messages instead of preset ones, 
 - **Windows**: Built-in (uses Windows Media Player)
 - **macOS**: Built-in (`afplay`)
 - **Linux**: `paplay` or `aplay`
+
+### For Focus Detection
+Focus detection suppresses sound and desktop notifications when the terminal is focused.
+
+| Platform | Support | Notes |
+|----------|---------|-------|
+| **macOS** | ✅ Full | Uses AppleScript to detect frontmost application |
+| **Windows** | ❌ Not supported | No reliable API available |
+| **Linux** | ❌ Not supported | Varies by desktop environment |
+
+> **Note**: On unsupported platforms, notifications are always sent (fail-open behavior). TTS reminders are never suppressed, even when focused, since users may step away after seeing the toast.
 
 ## Events Handled
 
