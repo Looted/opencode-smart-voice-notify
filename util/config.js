@@ -252,6 +252,7 @@ const getDefaultConfigObject = () => ({
   enableDesktopNotification: true,
   desktopNotificationTimeout: 5,
   showProjectInNotification: true,
+  suppressWhenFocused: true,
   idleThresholdSeconds: 60,
   debugLog: false
 });
@@ -739,6 +740,25 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     // Include the project name in notification titles for easier identification
     // Example: "OpenCode - MyProject" instead of just "OpenCode"
     "showProjectInNotification": ${overrides.showProjectInNotification !== undefined ? overrides.showProjectInNotification : true},
+    
+    // ============================================================
+    // FOCUS DETECTION SETTINGS
+    // ============================================================
+    // Suppress notifications when you're actively looking at the terminal.
+    // This prevents notifications from interrupting you when you're already
+    // paying attention to the OpenCode terminal.
+    //
+    // PLATFORM SUPPORT:
+    //   macOS:   Full support - Uses AppleScript to detect frontmost application
+    //   Windows: Not supported - No reliable API available
+    //   Linux:   Not supported - Varies by desktop environment
+    //
+    // When focus detection is not supported on your platform, notifications
+    // will always be sent (fail-open behavior).
+    
+    // Suppress sound and desktop notifications when terminal is focused
+    // TTS reminders are still allowed (user might step away after task completes)
+    "suppressWhenFocused": ${overrides.suppressWhenFocused !== undefined ? overrides.suppressWhenFocused : true},
     
     // Consider monitor asleep after this many seconds of inactivity (Windows only)
     "idleThresholdSeconds": ${overrides.idleThresholdSeconds !== undefined ? overrides.idleThresholdSeconds : 60},
