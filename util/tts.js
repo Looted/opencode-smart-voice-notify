@@ -5,7 +5,15 @@ import { loadConfig } from './config.js';
 import { createLinuxPlatform } from './linux.js';
 
 const platform = os.platform();
-const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
+// Remove module-level configDir constant that caches process.env prematurely
+// const configDir = process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
+
+/**
+ * Gets the current OpenCode config directory
+ * @returns {string}
+ */
+const getConfigDir = () => process.env.OPENCODE_CONFIG_DIR || path.join(os.homedir(), '.config', 'opencode');
+
 
 /**
  * Loads the TTS configuration (shared with the notification plugin)
@@ -188,7 +196,9 @@ let elevenLabsQuotaExceeded = false;
  */
 export const createTTS = ({ $, client }) => {
   const config = getTTSConfig();
+  const configDir = getConfigDir();
   const logsDir = path.join(configDir, 'logs');
+
   const logFile = path.join(logsDir, 'smart-voice-notify-debug.log');
   
   // Ensure logs directory exists if debug logging is enabled
@@ -645,7 +655,8 @@ public static extern int waveOutGetVolume(IntPtr hwo, out uint dwVolume);
     if (activeConfig.fallbackSound) {
       const soundPath = path.isAbsolute(activeConfig.fallbackSound) 
         ? activeConfig.fallbackSound 
-        : path.join(configDir, activeConfig.fallbackSound);
+        : path.join(getConfigDir(), activeConfig.fallbackSound);
+
       await playAudioFile(soundPath, activeConfig.loops || 1);
     }
     return false;
