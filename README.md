@@ -50,6 +50,7 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 - TUI toast notifications
 - Cross-platform support (Windows, macOS, Linux)
 - **Focus Detection** (macOS): Suppresses notifications when terminal is focused
+- **Webhook Integration**: Receive notifications on Discord or any custom webhook endpoint when tasks finish or need attention
 
 ## Installation
 
@@ -151,7 +152,14 @@ If you prefer to create the config manually, add a `smart-voice-notify.jsonc` fi
     "aiApiKey": "",
     "aiFallbackToStatic": true,
     
+    // Webhook settings (optional - works with Discord)
+    "enableWebhook": false,
+    "webhookUrl": "",
+    "webhookUsername": "OpenCode Notify",
+    "webhookMentionOnPermission": false,
+    
     // General settings
+
     "wakeMonitor": true,
     "forceVolume": true,
     "volumeThreshold": 50,
@@ -219,6 +227,40 @@ If you want dynamic, AI-generated notification messages instead of preset ones, 
 | vLLM | `http://localhost:8000/v1` | Use "EMPTY" |
 | Jan.ai | `http://localhost:1337/v1` | Required |
 
+### Discord / Webhook Integration (Optional)
+
+Receive remote notifications on Discord or any custom endpoint. This is perfect for long-running tasks when you're away from your computer.
+
+1. **Create a Discord Webhook**:
+   - In Discord, go to **Server Settings** > **Integrations** > **Webhooks**.
+   - Click **New Webhook**, choose a channel, and click **Copy Webhook URL**.
+
+2. **Enable Webhooks in your config**:
+   ```jsonc
+   {
+     "enableWebhook": true,
+     "webhookUrl": "https://discord.com/api/webhooks/...",
+     "webhookUsername": "OpenCode Notify",
+     "webhookEvents": ["idle", "permission", "error", "question"],
+     "webhookMentionOnPermission": true
+   }
+   ```
+
+3. **Features**:
+   - **Color-coded Embeds**: Different colors for task completion (green), permissions (orange), errors (red), and questions (blue).
+   - **Smart Mentions**: Automatically @everyone on Discord for urgent permission requests.
+   - **Rate Limiting**: Intelligent retry logic with backoff if Discord's rate limits are hit.
+   - **Fire-and-forget**: Webhook requests never block local sound or TTS playback.
+
+**Supported Webhook Events:**
+| Event | Trigger |
+|-------|---------|
+| `idle` | Agent finished working |
+| `permission` | Agent needs permission for a tool |
+| `error` | Agent encountered an error |
+| `question` | Agent is asking you a question |
+
+
 ## Requirements
 
 ### For OpenAI-Compatible TTS
@@ -267,12 +309,19 @@ Focus detection suppresses sound and desktop notifications when the terminal is 
 
 > **Note**: On unsupported platforms, notifications are always sent (fail-open behavior). TTS reminders are never suppressed, even when focused, since users may step away after seeing the toast.
 
+### For Webhook Notifications
+- **Discord**: Full support for Discord's webhook embed format.
+- **Generic**: Works with any endpoint that accepts a POST request with a JSON body (though formatting is optimized for Discord).
+- **Rate Limits**: The plugin handles HTTP 429 (Too Many Requests) automatically with retries and a 250ms queue delay.
+
 ## Events Handled
 
 | Event | Action |
 |-------|--------|
 | `session.idle` | Agent finished working - notify user |
+| `session.error` | Agent encountered an error - alert user |
 | `permission.asked` | Permission request (SDK v1.1.1+) - alert user |
+
 | `permission.updated` | Permission request (SDK v1.0.x) - alert user |
 | `permission.replied` | User responded - cancel pending reminders |
 | `question.asked` | Agent asks question (SDK v1.1.7+) - notify user |
