@@ -3,7 +3,6 @@
 
 # OpenCode Smart Voice Notify
 
-[![Test](https://github.com/MasuRii/opencode-smart-voice-notify/actions/workflows/test.yml/badge.svg)](https://github.com/MasuRii/opencode-smart-voice-notify/actions/workflows/test.yml)
 ![Coverage](https://img.shields.io/badge/coverage-86.73%25-brightgreen)
 ![Version](https://img.shields.io/badge/version-1.2.5-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -59,22 +58,6 @@ The plugin automatically tries multiple TTS engines in order, falling back if on
 - **Wake monitor** from sleep before notifying
 - **Auto-boost volume** if too low
 - **TUI toast** notifications
-
-## Feature Comparison
-
-How does this plugin compare to other OpenCode notification alternatives?
-
-| Feature | **Smart Voice Notify** | opencode-notify | discord-notify | warcraft-notify |
-|---------|:---:|:---:|:---:|:---:|
-| **TTS Support** | ✅ (4 Engines) | ❌ | ❌ | ❌ |
-| **Sound Playback** | ✅ | ✅ | ❌ | ✅ |
-| **Desktop Notifications** | ✅ | ✅ | ❌ | ❌ |
-| **Discord Webhooks** | ✅ | ❌ | ✅ | ❌ |
-| **AI Messages** | ✅ | ❌ | ❌ | ❌ |
-| **Reminders/Backoff** | ✅ | ❌ | ❌ | ❌ |
-| **Focus Detection** | ✅ (macOS) | ✅ | ❌ | ❌ |
-| **Sound Themes** | ✅ | ❌ | ❌ | ✅ |
-| **Project Specific Sounds** | ✅ | ❌ | ❌ | ❌ |
 
 ## Installation
 
