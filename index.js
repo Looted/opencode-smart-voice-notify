@@ -6,6 +6,7 @@ import { getSmartMessage } from './util/ai-messages.js';
 import { notifyTaskComplete, notifyPermissionRequest, notifyQuestion, notifyError } from './util/desktop-notify.js';
 import { notifyWebhookIdle, notifyWebhookPermission, notifyWebhookError, notifyWebhookQuestion } from './util/webhook.js';
 import { isTerminalFocused } from './util/focus-detect.js';
+import { pickThemeSound } from './util/sound-theme.js';
 
 /**
  * OpenCode Smart Voice Notify Plugin
@@ -288,28 +289,53 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
   };
 
   /**
-   * Play a sound file from assets
+   * Play a sound file from assets or theme
+   * @param {string} soundFile - Default sound file path
+   * @param {number} loops - Number of times to loop
+   * @param {string} eventType - Event type for theme support (idle, permission, error, question)
    */
-  const playSound = async (soundFile, loops = 1) => {
+  const playSound = async (soundFile, loops = 1, eventType = null) => {
     if (!config.enableSound) return;
     try {
-      const soundPath = path.isAbsolute(soundFile) 
-        ? soundFile 
-        : path.join(configDir, soundFile);
+      let soundPath = soundFile;
       
-      if (!fs.existsSync(soundPath)) {
-        debugLog(`playSound: file not found: ${soundPath}`);
+      // If a theme is configured, try to pick a sound from it
+      if (eventType && config.soundThemeDir) {
+        const themeSound = pickThemeSound(eventType, config);
+        if (themeSound) {
+          soundPath = themeSound;
+        }
+      }
+
+      const finalPath = path.isAbsolute(soundPath) 
+        ? soundPath 
+        : path.join(configDir, soundPath);
+      
+      if (!fs.existsSync(finalPath)) {
+        debugLog(`playSound: file not found: ${finalPath}`);
+        // If we tried a theme sound and it failed, fallback to the default soundFile
+        if (soundPath !== soundFile) {
+          const fallbackPath = path.isAbsolute(soundFile) ? soundFile : path.join(configDir, soundFile);
+          if (fs.existsSync(fallbackPath)) {
+            await tts.wakeMonitor();
+            await tts.forceVolume();
+            await tts.playAudioFile(fallbackPath, loops);
+            debugLog(`playSound: fell back to default sound ${fallbackPath}`);
+            return;
+          }
+        }
         return;
       }
       
       await tts.wakeMonitor();
       await tts.forceVolume();
-      await tts.playAudioFile(soundPath, loops);
-      debugLog(`playSound: played ${soundPath} (${loops}x)`);
+      await tts.playAudioFile(finalPath, loops);
+      debugLog(`playSound: played ${finalPath} (${loops}x)`);
     } catch (e) {
       debugLog(`playSound error: ${e.message}`);
     }
   };
+
 
   /**
    * Cancel any pending TTS reminder for a given type
@@ -507,8 +533,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
     // Step 1: Play the immediate sound notification
     if (soundFile) {
-      await playSound(soundFile, soundLoops);
+      await playSound(soundFile, soundLoops, type);
     }
+
 
     // CRITICAL FIX: Check if user responded during sound playback
     // For idle notifications: check if there was new activity after the idle start
@@ -718,7 +745,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     // Step 2: Play sound (only if not suppressed)
     const soundLoops = batchCount === 1 ? 2 : Math.min(3, batchCount);
     if (!suppressPermission) {
-      await playSound(config.permissionSound, soundLoops);
+      await playSound(config.permissionSound, soundLoops, 'permission');
     } else {
       debugLog('processPermissionBatch: sound suppressed (terminal focused)');
     }
@@ -817,7 +844,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     
     // Step 2: Play sound (only if not suppressed)
     if (!suppressQuestion) {
-      await playSound(config.questionSound, 2);
+      await playSound(config.questionSound, 2, 'question');
     } else {
       debugLog('processQuestionBatch: sound suppressed (terminal focused)');
     }
@@ -1028,7 +1055,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           // Only play sound in sound-first, sound-only, or both mode
           if (config.notificationMode !== 'tts-first') {
             if (!suppressIdle) {
-              await playSound(config.idleSound, 1);
+              await playSound(config.idleSound, 1, 'idle');
             } else {
               debugLog('session.idle: sound suppressed (terminal focused)');
             }
@@ -1107,7 +1134,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           // Only play sound in sound-first, sound-only, or both mode
           if (config.notificationMode !== 'tts-first') {
             if (!suppressError) {
-              await playSound(config.errorSound, 2);  // Play twice for urgency
+              await playSound(config.errorSound, 2, 'error');  // Play twice for urgency
             } else {
               debugLog('session.error: sound suppressed (terminal focused)');
             }
