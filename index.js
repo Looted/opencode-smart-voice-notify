@@ -7,6 +7,7 @@ import { notifyTaskComplete, notifyPermissionRequest, notifyQuestion, notifyErro
 import { notifyWebhookIdle, notifyWebhookPermission, notifyWebhookError, notifyWebhookQuestion } from './util/webhook.js';
 import { isTerminalFocused } from './util/focus-detect.js';
 import { pickThemeSound } from './util/sound-theme.js';
+import { getProjectSound } from './util/per-project-sound.js';
 
 /**
  * OpenCode Smart Voice Notify Plugin
@@ -299,7 +300,17 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     try {
       let soundPath = soundFile;
       
+      // Phase 6: Per-project sound assignment
+      // Only applies to 'idle' (task completion) events for project identification
+      if (eventType === 'idle' && config.perProjectSounds) {
+        const projectSound = getProjectSound(project, config);
+        if (projectSound) {
+          soundPath = projectSound;
+        }
+      }
+
       // If a theme is configured, try to pick a sound from it
+      // Theme sounds have higher priority than per-project sounds if both are set
       if (eventType && config.soundThemeDir) {
         const themeSound = pickThemeSound(eventType, config);
         if (themeSound) {
