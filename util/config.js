@@ -254,6 +254,11 @@ const getDefaultConfigObject = () => ({
   showProjectInNotification: true,
   suppressWhenFocused: true,
   alwaysNotify: false,
+  enableWebhook: false,
+  webhookUrl: "",
+  webhookUsername: "OpenCode Notify",
+  webhookEvents: ["idle", "permission", "error", "question"],
+  webhookMentionOnPermission: false,
   idleThresholdSeconds: 60,
   debugLog: false
 });
@@ -764,6 +769,28 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     // Override focus detection: always send notifications even when terminal is focused
     // Set to true to disable focus-based suppression entirely
     "alwaysNotify": ${overrides.alwaysNotify !== undefined ? overrides.alwaysNotify : false},
+    
+    // ============================================================
+    // WEBHOOK NOTIFICATION SETTINGS (Discord/Generic)
+    // ============================================================
+    // Send notifications to a Discord webhook or any compatible endpoint.
+    // This allows you to receive notifications on your phone or other devices.
+    
+    // Enable webhook notifications
+    "enableWebhook": ${overrides.enableWebhook !== undefined ? overrides.enableWebhook : false},
+    
+    // Webhook URL (e.g., https://discord.com/api/webhooks/...)
+    "webhookUrl": "${overrides.webhookUrl || ''}",
+    
+    // Username to show in the webhook message
+    "webhookUsername": "${overrides.webhookUsername || 'OpenCode Notify'}",
+    
+    // Events that should trigger a webhook notification
+    // Options: "idle", "permission", "error", "question"
+    "webhookEvents": ${formatJSON(overrides.webhookEvents || ["idle", "permission", "error", "question"], 4)},
+    
+    // Mention @everyone on permission requests (Discord only)
+    "webhookMentionOnPermission": ${overrides.webhookMentionOnPermission !== undefined ? overrides.webhookMentionOnPermission : false},
     
     // Consider monitor asleep after this many seconds of inactivity (Windows only)
     "idleThresholdSeconds": ${overrides.idleThresholdSeconds !== undefined ? overrides.idleThresholdSeconds : 60},

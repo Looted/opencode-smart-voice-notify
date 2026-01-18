@@ -165,6 +165,57 @@ describe('config module', () => {
     });
   });
 
+  // ============================================================
+  // WEBHOOK NOTIFICATION CONFIG FIELDS (Task 4.2)
+  // ============================================================
+
+  describe('webhook config fields', () => {
+    test('all webhook fields have correct defaults', () => {
+      const config = loadConfig('smart-voice-notify');
+      expect(config.enableWebhook).toBe(false);
+      expect(config.webhookUrl).toBe("");
+      expect(config.webhookUsername).toBe("OpenCode Notify");
+      expect(config.webhookEvents).toEqual(["idle", "permission", "error", "question"]);
+      expect(config.webhookMentionOnPermission).toBe(false);
+    });
+
+    test('preserves user webhook settings', () => {
+      const customEvents = ["idle", "error"];
+      createTestConfig({
+        _configVersion: '1.0.0',
+        enableWebhook: true,
+        webhookUrl: "https://discord.com/api/webhooks/123",
+        webhookUsername: "Custom Bot",
+        webhookEvents: customEvents,
+        webhookMentionOnPermission: true
+      });
+
+      const config = loadConfig('smart-voice-notify');
+      expect(config.enableWebhook).toBe(true);
+      expect(config.webhookUrl).toBe("https://discord.com/api/webhooks/123");
+      expect(config.webhookUsername).toBe("Custom Bot");
+      expect(config.webhookEvents).toEqual(customEvents);
+      expect(config.webhookMentionOnPermission).toBe(true);
+    });
+
+    test('preserves partial webhook config', () => {
+      createTestConfig({
+        _configVersion: '1.0.0',
+        enableWebhook: true,
+        webhookUrl: "https://discord.com/api/webhooks/123"
+        // Other fields missing
+      });
+
+      const config = loadConfig('smart-voice-notify');
+      expect(config.enableWebhook).toBe(true);
+      expect(config.webhookUrl).toBe("https://discord.com/api/webhooks/123");
+      // Missing fields should use defaults
+      expect(config.webhookUsername).toBe("OpenCode Notify");
+      expect(config.webhookEvents).toEqual(["idle", "permission", "error", "question"]);
+      expect(config.webhookMentionOnPermission).toBe(false);
+    });
+  });
+
   describe('deep merge preserves user values for new fields', () => {
     test('preserves all existing user config values when adding new fields', () => {
       // Create a config with user-customized values (simulating an old version)
@@ -193,6 +244,10 @@ describe('config module', () => {
       expect(config.enableDesktopNotification).toBe(true);
       expect(config.desktopNotificationTimeout).toBe(5);
       expect(config.showProjectInNotification).toBe(true);
+      
+      // Verify webhook fields are added with defaults
+      expect(config.enableWebhook).toBe(false);
+      expect(config.webhookUrl).toBe("");
     });
     
     test('preserves user arrays without merging them', () => {
@@ -310,6 +365,8 @@ describe('config module', () => {
       expect(config).toHaveProperty('enableDesktopNotification');
       expect(config).toHaveProperty('desktopNotificationTimeout');
       expect(config).toHaveProperty('showProjectInNotification');
+      expect(config).toHaveProperty('enableWebhook');
+      expect(config).toHaveProperty('webhookUrl');
       expect(config).toHaveProperty('enableSound');
       expect(config).toHaveProperty('enableToast');
       expect(config).toHaveProperty('debugLog');
@@ -321,6 +378,7 @@ describe('config module', () => {
       const content = readTestFile('smart-voice-notify.jsonc');
       expect(content).toContain('//');
       expect(content).toContain('DESKTOP NOTIFICATION SETTINGS');
+      expect(content).toContain('WEBHOOK NOTIFICATION SETTINGS');
     });
     
     test('handles invalid JSONC gracefully by creating new config', () => {
@@ -370,6 +428,8 @@ describe('config module', () => {
       expect(typeof config.debugLog).toBe('boolean');
       expect(typeof config.enableAIMessages).toBe('boolean');
       expect(typeof config.aiFallbackToStatic).toBe('boolean');
+      expect(typeof config.enableWebhook).toBe('boolean');
+      expect(typeof config.webhookMentionOnPermission).toBe('boolean');
       
       // Numbers
       expect(typeof config.ttsReminderDelaySeconds).toBe('number');
@@ -396,6 +456,8 @@ describe('config module', () => {
       expect(typeof config.idleSound).toBe('string');
       expect(typeof config.permissionSound).toBe('string');
       expect(typeof config.questionSound).toBe('string');
+      expect(typeof config.webhookUrl).toBe('string');
+      expect(typeof config.webhookUsername).toBe('string');
       
       // Arrays
       expect(Array.isArray(config.idleTTSMessages)).toBe(true);
@@ -404,6 +466,7 @@ describe('config module', () => {
       expect(Array.isArray(config.idleReminderTTSMessages)).toBe(true);
       expect(Array.isArray(config.permissionReminderTTSMessages)).toBe(true);
       expect(Array.isArray(config.questionReminderTTSMessages)).toBe(true);
+      expect(Array.isArray(config.webhookEvents)).toBe(true);
       
       // Objects
       expect(typeof config.aiPrompts).toBe('object');
