@@ -419,7 +419,7 @@ bun test --coverage
 bun test --watch
 ```
 
-For more detailed testing guidelines, see [CONTRIBUTING.md](./CONTRIBUTING.md) (coming soon).
+For more detailed testing guidelines, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Updating
 
