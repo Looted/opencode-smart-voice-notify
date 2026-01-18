@@ -25,9 +25,3 @@ tests/.env.local
 
 # Coverage reports
 coverage/
-
-# Ralph - AI agent loop files
-.ralph-state.json
-.ralph-lock
-.ralph-done
-.ralph*
