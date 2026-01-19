@@ -96,6 +96,14 @@ export const getDefaultConfigObject = () => ({
   enabled: true,
   notificationMode: 'sound-first',
   enableTTSReminder: true,
+  enableIdleNotification: true,
+  enablePermissionNotification: true,
+  enableQuestionNotification: true,
+  enableErrorNotification: false,
+  enableIdleReminder: true,
+  enablePermissionReminder: true,
+  enableQuestionReminder: true,
+  enableErrorReminder: false,
   ttsReminderDelaySeconds: 30,
   idleReminderDelaySeconds: 30,
   permissionReminderDelaySeconds: 20,
@@ -340,6 +348,25 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     // Master switch to enable or disable the entire plugin.
     // Set to false to disable all notifications without uninstalling.
     "enabled": ${overrides.enabled !== undefined ? overrides.enabled : true},
+
+    // ============================================================
+    // GRANULAR NOTIFICATION CONTROL
+    // ============================================================
+    // Enable or disable notifications for specific event types.
+    // If disabled, no sound, TTS, desktop, or webhook notifications
+    // will be sent for that specific category.
+    "enableIdleNotification": ${overrides.enableIdleNotification !== undefined ? overrides.enableIdleNotification : true},       // Agent finished work
+    "enablePermissionNotification": ${overrides.enablePermissionNotification !== undefined ? overrides.enablePermissionNotification : true}, // Agent needs permission
+    "enableQuestionNotification": ${overrides.enableQuestionNotification !== undefined ? overrides.enableQuestionNotification : true},     // Agent asks a question
+    "enableErrorNotification": ${overrides.enableErrorNotification !== undefined ? overrides.enableErrorNotification : false},       // Agent encountered an error
+
+    // Enable or disable reminders for specific event types.
+    // If disabled, the initial notification will still fire, but no
+    // follow-up TTS reminders will be scheduled.
+    "enableIdleReminder": ${overrides.enableIdleReminder !== undefined ? overrides.enableIdleReminder : true},
+    "enablePermissionReminder": ${overrides.enablePermissionReminder !== undefined ? overrides.enablePermissionReminder : true},
+    "enableQuestionReminder": ${overrides.enableQuestionReminder !== undefined ? overrides.enableQuestionReminder : true},
+    "enableErrorReminder": ${overrides.enableErrorReminder !== undefined ? overrides.enableErrorReminder : false},
 
     // ============================================================
     // NOTIFICATION MODE SETTINGS (Smart Notification System)

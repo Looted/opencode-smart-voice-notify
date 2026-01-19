@@ -27,6 +27,25 @@
     "enabled": true,
 
     // ============================================================
+    // GRANULAR NOTIFICATION CONTROL
+    // ============================================================
+    // Enable or disable notifications for specific event types.
+    // If disabled, no sound, TTS, desktop, or webhook notifications
+    // will be sent for that specific category.
+    "enableIdleNotification": true,       // Agent finished work
+    "enablePermissionNotification": true, // Agent needs permission
+    "enableQuestionNotification": true,     // Agent asks a question
+    "enableErrorNotification": false,       // Agent encountered an error
+
+    // Enable or disable reminders for specific event types.
+    // If disabled, the initial notification will still fire, but no
+    // follow-up TTS reminders will be scheduled.
+    "enableIdleReminder": true,
+    "enablePermissionReminder": true,
+    "enableQuestionReminder": true,
+    "enableErrorReminder": false,
+
+    // ============================================================
     // NOTIFICATION MODE SETTINGS (Smart Notification System)
     // ============================================================
     // Controls how notifications are delivered:
