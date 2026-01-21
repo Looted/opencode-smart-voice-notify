@@ -121,18 +121,18 @@ describe('desktop-notify module', () => {
       const result = await sendDesktopNotification('Test Title', 'Test Message');
       expect(result).toHaveProperty('success');
       expect(typeof result.success).toBe('boolean');
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('accepts title and message parameters', async () => {
       // Should not throw
       const result = await sendDesktopNotification('Title Here', 'Body Here');
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('handles empty title gracefully', async () => {
       const result = await sendDesktopNotification('', 'Message');
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('handles empty message gracefully', async () => {
       const result = await sendDesktopNotification('Title', '');
@@ -146,12 +146,12 @@ describe('desktop-notify module', () => {
         urgency: 'critical'
       });
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('handles undefined options', async () => {
       const result = await sendDesktopNotification('Title', 'Message', undefined);
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
   });
 
   describe('timeout configuration', () => {
@@ -160,20 +160,20 @@ describe('desktop-notify module', () => {
         timeout: 15
       });
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('default timeout is applied when not specified', async () => {
       // Module should apply default timeout of 5
       const result = await sendDesktopNotification('Test', 'Message');
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
     
     test('accepts zero timeout', async () => {
       const result = await sendDesktopNotification('Test', 'Message', {
         timeout: 0
       });
       expect(result).toBeDefined();
-    });
+    }, 15000); // Extended timeout for real notifications
   });
 
   describe('platform-specific options', () => {

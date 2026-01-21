@@ -46,16 +46,18 @@ describe('loadConfig() integration', () => {
     expect(config.notificationMode).toBe('tts-only');
   });
 
-  it('should handle invalid JSONC gracefully by creating a fresh one', () => {
+  it('should handle invalid JSONC gracefully by returning defaults without overwriting', () => {
     const configPath = path.join(tempDir, 'smart-voice-notify.jsonc');
     fs.writeFileSync(configPath, 'invalid { json: c }', 'utf-8');
 
-    // Should not throw, should return defaults and overwrite invalid file
+    // Should not throw, should return defaults but NOT overwrite the invalid file
+    // (preserves user's config for them to fix syntax errors)
     const config = loadConfig('smart-voice-notify');
     
     expect(config.enabled).toBe(true);
+    // The invalid file should be preserved (not overwritten)
     const content = readTestFile('smart-voice-notify.jsonc');
-    expect(content).toContain('"enabled": true');
+    expect(content).toBe('invalid { json: c }');
   });
 
   it('should perform smart merge on update (add new fields)', () => {

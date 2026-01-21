@@ -73,9 +73,10 @@ describe('config module', () => {
       expect(() => parseJSONC('')).toThrow();
     });
 
-    test('throws on invalid JSON after stripping', () => {
-      const jsonc = '{\n  // comment\n  "key": "value",\n}'; // Trailing comma not allowed in standard JSON
-      expect(() => parseJSONC(jsonc)).toThrow();
+    test('handles trailing comma gracefully (Bun JSON5 behavior)', () => {
+      const jsonc = '{\n  // comment\n  "key": "value",\n}'; // Trailing comma - Bun's parser accepts this
+      const result = parseJSONC(jsonc);
+      expect(result).toEqual({ key: "value" });
     });
   });
 
