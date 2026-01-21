@@ -384,7 +384,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
    * The reminder uses a personalized TTS message.
    * @param {string} type - 'idle', 'permission', 'question', or 'error'
    * @param {string} message - The TTS message to speak (used directly, supports count-aware messages)
-   * @param {object} options - Additional options (fallbackSound, permissionCount, questionCount, errorCount)
+   * @param {object} options - Additional options (fallbackSound, permissionCount, questionCount, errorCount, aiContext)
    */
   const scheduleTTSReminder = (type, message, options = {}) => {
     // Check if TTS reminders are enabled
@@ -429,6 +429,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
     // Store count for generating count-aware messages in reminders
     const itemCount = options.permissionCount || options.questionCount || options.errorCount || 1;
+    
+    // Store AI context for context-aware follow-up messages
+    const aiContext = options.aiContext || {};
 
     debugLog(`scheduleTTSReminder: scheduling ${type} TTS in ${delaySeconds}s (count=${itemCount})`);
 
@@ -452,7 +455,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         
         // Get the appropriate reminder message
         // For permissions/questions/errors with count > 1, use the count-aware message generator
+        // Pass stored AI context for context-aware message generation
         const storedCount = reminder?.itemCount || 1;
+        const storedAiContext = reminder?.aiContext || {};
         let reminderMessage;
         if (type === 'permission') {
           reminderMessage = await getPermissionMessage(storedCount, true);
@@ -461,7 +466,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
         } else if (type === 'error') {
           reminderMessage = await getErrorMessage(storedCount, true);
         } else {
-          reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
+          // Pass stored AI context for idle reminders (context-aware AI feature)
+          reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages, storedAiContext);
         }
 
         // Check for ElevenLabs API key configuration issues
@@ -508,7 +514,9 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               }
               
               // Use count-aware message for follow-ups too
+              // Pass stored AI context for context-aware message generation
               const followUpStoredCount = followUpReminder?.itemCount || 1;
+              const followUpAiContext = followUpReminder?.aiContext || {};
               let followUpMessage;
               if (type === 'permission') {
                 followUpMessage = await getPermissionMessage(followUpStoredCount, true);
@@ -517,7 +525,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               } else if (type === 'error') {
                 followUpMessage = await getErrorMessage(followUpStoredCount, true);
               } else {
-                followUpMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
+                // Pass stored AI context for idle follow-ups (context-aware AI feature)
+                followUpMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages, followUpAiContext);
               }
               
               await tts.wakeMonitor();
@@ -534,7 +543,8 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               timeoutId: followUpTimeoutId,
               scheduledAt: Date.now(),
               followUpCount,
-              itemCount: storedCount  // Preserve the count for follow-ups
+              itemCount: storedCount,  // Preserve the count for follow-ups
+              aiContext: storedAiContext  // Preserve AI context for follow-ups
             });
           }
         }
@@ -544,12 +554,13 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
       }
     }, delayMs);
 
-    // Store the pending reminder with item count
+    // Store the pending reminder with item count and AI context
     pendingReminders.set(type, {
       timeoutId,
       scheduledAt: Date.now(),
       followUpCount: 0,
-      itemCount  // Store count for later use
+      itemCount,  // Store count for later use
+      aiContext   // Store AI context for context-aware follow-ups
     });
   };
 
@@ -1093,13 +1104,27 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           const sessionID = event.properties?.sessionID;
           if (!sessionID) return;
 
+          // Fetch session details for context-aware AI and sub-session filtering
+          let sessionData = null;
           try {
             const session = await client.session.get({ path: { id: sessionID } });
-            if (session?.data?.parentID) {
+            sessionData = session?.data;
+            if (sessionData?.parentID) {
               debugLog(`session.idle: skipped (sub-session ${sessionID})`);
               return;
             }
           } catch (e) {}
+
+          // Build context for AI message generation (used when enableContextAwareAI is true)
+          const aiContext = {
+            projectName: project?.name,
+            sessionTitle: sessionData?.title,
+            sessionSummary: sessionData?.summary ? {
+              files: sessionData.summary.files,
+              additions: sessionData.summary.additions,
+              deletions: sessionData.summary.deletions
+            } : undefined
+          };
 
           // Record the time session went idle - used to filter out pre-idle messages
           lastSessionIdleTime = Date.now();
@@ -1140,18 +1165,19 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           }
 
           // Step 4: Generate AI message for reminder AFTER sound played
-          const reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages);
+          const reminderMessage = await getSmartMessage('idle', true, config.idleReminderTTSMessages, aiContext);
 
           // Step 5: Schedule TTS reminder if enabled
           if (config.enableTTSReminder && reminderMessage) {
             scheduleTTSReminder('idle', reminderMessage, {
-              fallbackSound: config.idleSound
+              fallbackSound: config.idleSound,
+              aiContext  // Pass context for follow-up reminders
             });
           }
           
           // Step 6: If TTS-first or both mode, generate and speak immediate message
           if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-            const ttsMessage = await getSmartMessage('idle', false, config.idleTTSMessages);
+            const ttsMessage = await getSmartMessage('idle', false, config.idleTTSMessages, aiContext);
             await tts.wakeMonitor();
             await tts.forceVolume();
             await tts.speak(ttsMessage, {

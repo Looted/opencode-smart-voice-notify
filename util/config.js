@@ -257,6 +257,7 @@ export const getDefaultConfigObject = () => ({
   aiApiKey: '',
   aiTimeout: 15000,
   aiFallbackToStatic: true,
+  enableContextAwareAI: false,
   aiPrompts: {
     idle: "Generate a single brief, friendly notification sentence (max 15 words) saying a coding task is complete. Be encouraging and warm. Output only the message, no quotes.",
     permission: "Generate a single brief, urgent but friendly notification sentence (max 15 words) asking the user to approve a permission request. Output only the message, no quotes.",
@@ -729,6 +730,14 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     
     // Fallback to static preset messages if AI generation fails
     "aiFallbackToStatic": ${overrides.aiFallbackToStatic !== undefined ? overrides.aiFallbackToStatic : true},
+    
+    // Enable context-aware AI messages (includes project name, task title, and change summary)
+    // When enabled, AI-generated notifications will include relevant context like:
+    // - Project name (e.g., "Your work on MyProject is complete!")
+    // - Task/session title if available
+    // - Change summary (files modified, lines added/deleted)
+    // Disabled by default - enable this for more personalized notifications
+    "enableContextAwareAI": ${overrides.enableContextAwareAI !== undefined ? overrides.enableContextAwareAI : false},
     
     // Custom prompts for each notification type
     // The AI will generate a short message based on these prompts
