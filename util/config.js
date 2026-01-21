@@ -272,7 +272,7 @@ export const getDefaultConfigObject = () => ({
   questionSound: 'assets/Machine-alert-beep-sound-effect.mp3',
   errorSound: 'assets/Machine-alert-beep-sound-effect.mp3',
   wakeMonitor: true,
-  forceVolume: true,
+  forceVolume: false,
   volumeThreshold: 50,
   enableToast: true,
   enableSound: true,
@@ -765,7 +765,7 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     "wakeMonitor": ${overrides.wakeMonitor !== undefined ? overrides.wakeMonitor : true},
     
     // Force system volume up if below threshold
-    "forceVolume": ${overrides.forceVolume !== undefined ? overrides.forceVolume : true},
+    "forceVolume": ${overrides.forceVolume !== undefined ? overrides.forceVolume : false},
     
     // Volume threshold (0-100): force volume if current level is below this
     "volumeThreshold": ${overrides.volumeThreshold !== undefined ? overrides.volumeThreshold : 50},

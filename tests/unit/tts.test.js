@@ -41,6 +41,7 @@ import {
   cleanupTestTempDir, 
   getTestTempDir,
   createTestConfig,
+  createMinimalConfig,
   createMockShellRunner,
   createMockClient,
   testFileExists
@@ -408,6 +409,8 @@ describe('tts.js', () => {
 
     beforeEach(() => {
       createTestTempDir();
+      // Create config with forceVolume enabled (default is now false per Issue #8)
+      createTestConfig(createMinimalConfig({ forceVolume: true, volumeThreshold: 50 }));
       mockShell = createMockShellRunner();
       tts = createTTS({ $: mockShell, client: createMockClient() });
     });
@@ -418,6 +421,7 @@ describe('tts.js', () => {
 
     it('should skip if volume is above threshold', async () => {
       if (process.platform === 'win32') {
+        createTestConfig(createMinimalConfig({ forceVolume: true, volumeThreshold: 50 }));
         mockShell = createMockShellRunner({
           handler: (cmd) => {
             if (cmd.includes('Win32VolCheck')) return { stdout: Buffer.from('80') };
@@ -433,6 +437,7 @@ describe('tts.js', () => {
 
     it('should force volume if below threshold', async () => {
       if (process.platform === 'win32') {
+        createTestConfig(createMinimalConfig({ forceVolume: true, volumeThreshold: 50 }));
         mockShell = createMockShellRunner({
           handler: (cmd) => {
             if (cmd.includes('Win32VolCheck')) return { stdout: Buffer.from('20') };
@@ -479,6 +484,8 @@ describe('tts.js', () => {
 
     beforeEach(() => {
       createTestTempDir();
+      // Create config with forceVolume enabled (default is now false per Issue #8)
+      createTestConfig(createMinimalConfig({ forceVolume: true, volumeThreshold: 50, wakeMonitor: true }));
       mockShell = createMockShellRunner();
       tts = createTTS({ $: mockShell, client: createMockClient() });
     });
@@ -489,6 +496,8 @@ describe('tts.js', () => {
 
     it('should call wakeMonitor and forceVolume before speaking', async () => {
       if (process.platform === 'win32') {
+        // Create config with forceVolume and wakeMonitor enabled
+        createTestConfig(createMinimalConfig({ forceVolume: true, volumeThreshold: 50, wakeMonitor: true, idleThresholdSeconds: 60 }));
         // Mock to trigger wake and force volume
         mockShell = createMockShellRunner({
           handler: (cmd) => {
