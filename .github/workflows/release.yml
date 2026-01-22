@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.4.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run (skip publish steps)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version format. Expected: X.Y.Z or X.Y.Z-suffix (e.g., 1.4.0, 2.0.0-beta.1)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=v$VERSION" >> $GITHUB_ENV
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun test
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update package.json version
+        run: |
+          # Update version in package.json
+          bun --eval "
+            const pkg = await Bun.file('package.json').json();
+            pkg.version = '${{ env.VERSION }}';
+            await Bun.write('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Updated package.json to version ${{ env.VERSION }}"
+
+      - name: Commit version bump
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git add package.json
+          git commit -m "chore(release): bump version to ${{ env.VERSION }}"
+          git push
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREV_TAG="${{ steps.prev_tag.outputs.prev_tag }}"
+          
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag, get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges HEAD)
+            COMPARE_URL=""
+          else
+            # Get commits since last tag
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREV_TAG}..HEAD)
+            COMPARE_URL="**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ env.TAG }}"
+          fi
+          
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature)" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "^- fix" || true)
+          DOCS=$(echo "$COMMITS" | grep -iE "^- docs?" || true)
+          CHORES=$(echo "$COMMITS" | grep -iE "^- (chore|build|ci|refactor|perf|test|style)" || true)
+          BREAKING=$(echo "$COMMITS" | grep -iE "^- .*!:|BREAKING" || true)
+          OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|feature|fix|docs?|chore|build|ci|refactor|perf|test|style)" || true)
+          
+          # Build release notes
+          {
+            echo "RELEASE_NOTES<<EOF"
+            echo "## What's Changed"
+            echo ""
+            
+            if [ -n "$BREAKING" ]; then
+              echo "### Breaking Changes"
+              echo "$BREAKING"
+              echo ""
+            fi
+            
+            if [ -n "$FEATURES" ]; then
+              echo "### Features"
+              echo "$FEATURES"
+              echo ""
+            fi
+            
+            if [ -n "$FIXES" ]; then
+              echo "### Bug Fixes"
+              echo "$FIXES"
+              echo ""
+            fi
+            
+            if [ -n "$DOCS" ]; then
+              echo "### Documentation"
+              echo "$DOCS"
+              echo ""
+            fi
+            
+            if [ -n "$CHORES" ]; then
+              echo "### Maintenance"
+              echo "$CHORES"
+              echo ""
+            fi
+            
+            if [ -n "$OTHER" ]; then
+              echo "### Other Changes"
+              echo "$OTHER"
+              echo ""
+            fi
+            
+            echo "---"
+            echo ""
+            echo "## Installation"
+            echo ""
+            echo "Add to your OpenCode config (\`~/.config/opencode/opencode.json\`):"
+            echo ""
+            echo "\`\`\`json"
+            echo "{"
+            echo "  \"plugin\": [\"opencode-smart-voice-notify@${{ env.VERSION }}\"]"
+            echo "}"
+            echo "\`\`\`"
+            echo ""
+            echo "Or install from GitHub:"
+            echo ""
+            echo "\`\`\`json"
+            echo "{"
+            echo "  \"plugin\": [\"github:MasuRii/opencode-smart-voice-notify#${{ env.TAG }}\"]"
+            echo "}"
+            echo "\`\`\`"
+            echo ""
+            
+            if [ -n "$COMPARE_URL" ]; then
+              echo "$COMPARE_URL"
+            fi
+            
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git tag -a "${{ env.TAG }}" -m "Release ${{ env.VERSION }}"
+          git push origin "${{ env.TAG }}"
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: v${{ env.VERSION }}
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dry run summary
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "## Dry Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release:** ${{ github.event.inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Notes Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.release_notes.outputs.RELEASE_NOTES }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Release summary
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "## Release Created Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release:** ${{ github.event.inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
