@@ -73,8 +73,12 @@ jobs:
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           git add package.json
-          git commit -m "chore(release): bump version to ${{ env.VERSION }}"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to package.json (version already set to ${{ env.VERSION }})"
+          else
+            git commit -m "chore(release): bump version to ${{ env.VERSION }}"
+            git push
+          fi
 
       - name: Get previous tag
         id: prev_tag
@@ -176,14 +180,24 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ env.TAG }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::warning::Tag ${{ env.TAG }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create and push tag
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && steps.check_tag.outputs.exists != 'true' }}
         run: |
           git tag -a "${{ env.TAG }}" -m "Release ${{ env.VERSION }}"
           git push origin "${{ env.TAG }}"
 
       - name: Create GitHub Release
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && steps.check_tag.outputs.exists != 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
@@ -209,7 +223,7 @@ jobs:
           echo "${{ steps.release_notes.outputs.RELEASE_NOTES }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Release summary
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && steps.check_tag.outputs.exists != 'true' }}
         run: |
           echo "## Release Created Successfully" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -218,3 +232,14 @@ jobs:
           echo "**Pre-release:** ${{ github.event.inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Tag exists summary
+        if: ${{ github.event.inputs.dry_run != 'true' && steps.check_tag.outputs.exists == 'true' }}
+        run: |
+          echo "## Release Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Reason:** Tag ${{ env.TAG }} already exists" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To create a new release, use a different version number." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Existing Release:** https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
