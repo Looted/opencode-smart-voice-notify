@@ -43,7 +43,7 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
   };
 
   /**
-   * Get the current session type
+   * Get current session type
    * @returns {'x11' | 'wayland' | 'tty' | 'unknown'}
    */
   const getSessionType = () => {
@@ -363,6 +363,56 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
   };
 
   // ============================================================
+  // WSL2 SUPPORT
+  // ============================================================
+  
+  /**
+   * Detect if running in WSL2
+   * @returns {boolean}
+   */
+  const isWSL2 = () => {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync('/proc/version')) {
+        const version = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
+        return version.includes('microsoft') && version.includes('wsl2');
+      }
+    } catch (e) {
+      debugLog(`isWSL2: detection failed: ${e.message}`);
+    }
+    return false;
+  };
+  
+  /**
+   * Convert WSL path to Windows path
+   * @param {string} wslPath - WSL path
+   * @returns {string} Windows path
+   */
+  const convertToWindowsPath = (wslPath) => {
+    return wslPath.replace(/^\/mnt\/([a-z])\//, '$1:\\\\').replace(/\//g, '\\\\');
+  };
+  
+  /**
+   * Play audio file on Windows host via PowerShell (for WSL2)
+   * @param {string} filePath - WSL path to audio file
+   * @returns {Promise<boolean>} Success status
+   */
+  const playAudioWSL2 = async (filePath) => {
+    if (!$) return false;
+    try {
+      const windowsPath = convertToWindowsPath(filePath);
+      debugLog(`playAudioWSL2: converting ${filePath} to ${windowsPath}`);
+      
+      await $`powershell.exe -c "(New-Object Media.SoundPlayer '${windowsPath}').PlaySync()"`.quiet();
+      debugLog(`playAudioWSL2: PowerShell playback succeeded`);
+      return true;
+    } catch (e) {
+      debugLog(`playAudioWSL2: failed: ${e.message}`);
+      return false;
+    }
+  };
+
+  // ============================================================
   // AUDIO PLAYBACK
   // ============================================================
 
@@ -404,19 +454,27 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
   /**
    * Play an audio file
    * Tries PulseAudio (paplay) first, then falls back to ALSA (aplay)
+   * WSL2: Uses PowerShell bridge to Windows host audio
    * @param {string} filePath - Path to audio file
    * @param {number} loops - Number of times to play (default: 1)
    * @returns {Promise<boolean>} Success status
    */
   const playAudioFile = async (filePath, loops = 1) => {
     for (let i = 0; i < loops; i++) {
+      // Check if running in WSL2 first
+      if (isWSL2()) {
+        debugLog('playAudioFile: WSL2 detected, using PowerShell bridge');
+        if (await playAudioWSL2(filePath)) continue;
+        debugLog('playAudioFile: WSL2 bridge failed, trying Linux audio tools');
+      }
+      
       // Try PulseAudio first (supports more formats including MP3)
       if (await playAudioPulse(filePath)) continue;
       
       // Fallback to ALSA
       if (await playAudioAlsa(filePath)) continue;
       
-      // Both failed
+      // All methods failed
       debugLog(`playAudioFile: all methods failed for ${filePath}`);
       return false;
     }
@@ -432,6 +490,8 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
     isWayland,
     isX11,
     getSessionType,
+    isWSL2,
+    convertToWindowsPath,
     
     // Wake monitor
     wakeMonitor,
@@ -461,6 +521,7 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
     },
     
     // Audio playback
+    playAudioWSL2,
     playAudioFile,
     playAudioPulse,
     playAudioAlsa,
