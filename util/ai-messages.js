@@ -169,7 +169,7 @@ export async function generateAIMessage(promptType, context = {}) {
     let cleanMessage = message.replace(/^["']|["']$/g, '').trim();
     
     // Validate message length (sanity check)
-    if (cleanMessage.length < 5 || cleanMessage.length > 200) {
+    if (cleanMessage.length < 5 || cleanMessage.length > 500) {
       debugLog(`generateAIMessage: message length invalid (${cleanMessage.length} chars), rejecting`, config);
       return null;
     }
