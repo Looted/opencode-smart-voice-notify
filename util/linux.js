@@ -384,27 +384,37 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
   };
   
   /**
-   * Convert WSL path to Windows path
-   * @param {string} wslPath - WSL path
-   * @returns {string} Windows path
-   */
-  const convertToWindowsPath = (wslPath) => {
-    return wslPath.replace(/^\/mnt\/([a-z])\//, '$1:\\\\').replace(/\//g, '\\\\');
-  };
-  
-  /**
    * Play audio file on Windows host via PowerShell (for WSL2)
+   * Handles path conversion and file copying to Windows side for access
    * @param {string} filePath - WSL path to audio file
    * @returns {Promise<boolean>} Success status
    */
   const playAudioWSL2 = async (filePath) => {
     if (!$) return false;
     try {
-      const windowsPath = convertToWindowsPath(filePath);
-      debugLog(`playAudioWSL2: converting ${filePath} to ${windowsPath}`);
+      // Create a unique temp file name on Windows side
+      // Use /mnt/c/Users/Public which is writable and accessible by both
+      const fileName = filePath.split('/').pop() || 'audio.mp3';
+      const timestamp = Date.now();
+      const tempFileName = `opencode-audio-${timestamp}-${fileName}`;
+      const wslTempPath = `/mnt/c/Users/Public/${tempFileName}`;
+      const windowsTempPath = `C:\\Users\\Public\\${tempFileName}`;
       
-      await $`powershell.exe -c "(New-Object Media.SoundPlayer '${windowsPath}').PlaySync()"`.quiet();
-      debugLog(`playAudioWSL2: PowerShell playback succeeded`);
+      debugLog(`playAudioWSL2: copying ${filePath} to ${wslTempPath}`);
+      
+      // Copy file to Windows side
+      await $`cp "${filePath}" "${wslTempPath}"`.quiet();
+      
+      debugLog(`playAudioWSL2: playing ${windowsTempPath} via PowerShell`);
+      
+      // Play using Windows Media Player object
+      await $`powershell.exe -c "(New-Object Media.SoundPlayer '${windowsTempPath}').PlaySync()"`.quiet();
+      
+      debugLog(`playAudioWSL2: playback succeeded`);
+      
+      // Clean up temp file (async, don't wait)
+      $`rm "${wslTempPath}"`.quiet().catch(e => debugLog(`playAudioWSL2: cleanup failed: ${e.message}`));
+      
       return true;
     } catch (e) {
       debugLog(`playAudioWSL2: failed: ${e.message}`);
@@ -491,7 +501,6 @@ export const createLinuxPlatform = ({ $, debugLog = () => {} }) => {
     isX11,
     getSessionType,
     isWSL2,
-    convertToWindowsPath,
     
     // Wake monitor
     wakeMonitor,
