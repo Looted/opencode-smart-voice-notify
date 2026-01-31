@@ -18,29 +18,6 @@ import {
 // Store original os.platform for restoration
 let originalPlatform;
 
-// Mock notifier at module level
-let mockNotify;
-let mockNotifyCallback;
-
-/**
- * Sets up a mock for node-notifier.
- * We need to use dynamic import and module mocking.
- */
-const setupNotifierMock = () => {
-  mockNotifyCallback = null;
-  mockNotify = mock((options, callback) => {
-    mockNotifyCallback = callback;
-    // By default, simulate successful notification
-    if (callback) {
-      callback(null, 'ok');
-    }
-  });
-  
-  return {
-    notify: mockNotify
-  };
-};
-
 describe('desktop-notify module', () => {
   // Import the module fresh for each test
   let desktopNotify;

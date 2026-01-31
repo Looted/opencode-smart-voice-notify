@@ -10,10 +10,24 @@
  * @see docs/ARCHITECT_PLAN.md - Phase 0, Task 0.3
  */
 
-import { beforeAll, afterAll, beforeEach, afterEach } from 'bun:test';
+import { beforeAll, afterAll, beforeEach, afterEach, mock } from 'bun:test';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+
+// Mock node-notifier globally
+mock.module('node-notifier', () => {
+  return {
+    default: {
+      notify: (options, callback) => {
+        if (callback) callback(null, 'ok');
+      }
+    },
+    notify: (options, callback) => {
+      if (callback) callback(null, 'ok');
+    }
+  };
+});
 
 // ============================================================
 // TEST ENVIRONMENT CONFIGURATION

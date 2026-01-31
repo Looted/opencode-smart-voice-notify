@@ -127,7 +127,7 @@ describe('AI Message Generation Module', () => {
         json: () => Promise.resolve({
           choices: [{
             message: {
-              content: 'a'.repeat(201)
+              content: 'a'.repeat(501)
             }
           }]
         })
