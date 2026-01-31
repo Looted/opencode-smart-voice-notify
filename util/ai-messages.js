@@ -92,13 +92,32 @@ export async function generateAIMessage(promptType, context = {}) {
         if (files !== undefined) summaryParts.push(`${files} file(s) modified`);
         if (additions !== undefined) summaryParts.push(`+${additions} lines`);
         if (deletions !== undefined) summaryParts.push(`-${deletions} lines`);
-        contextParts.push(`Changes: ${summaryParts.join(', ')}`);
+        contextParts.push(`Stats: ${summaryParts.join(', ')}`);
         debugLog(`generateAIMessage: context includes sessionSummary (files=${files}, additions=${additions}, deletions=${deletions})`, config);
       }
     }
+
+    if (context.lastUserMessage) {
+      // Truncate to avoid huge context window usage
+      const truncated = context.lastUserMessage.length > 200 ? context.lastUserMessage.substring(0, 200) + '...' : context.lastUserMessage;
+      contextParts.push(`User Goal: "${truncated}"`);
+      debugLog(`generateAIMessage: context includes lastUserMessage`, config);
+    }
+
+    if (context.lastAssistantMessage) {
+      // Truncate
+      const truncated = context.lastAssistantMessage.length > 300 ? context.lastAssistantMessage.substring(0, 300) + '...' : context.lastAssistantMessage;
+      contextParts.push(`Work Done: "${truncated}"`);
+      debugLog(`generateAIMessage: context includes lastAssistantMessage`, config);
+    }
+
+    if (context.hasErrors) {
+      contextParts.push(`Note: The session encountered some errors or blockers.`);
+      debugLog(`generateAIMessage: context includes hasErrors=true`, config);
+    }
     
     if (contextParts.length > 0) {
-      prompt = `${prompt}\n\nContext for this notification:\n${contextParts.join('\n')}\n\nIncorporate relevant context into your message to make it more specific and helpful (e.g., mention the project name or what was worked on).`;
+      prompt = `${prompt}\n\nContext for this notification:\n${contextParts.join('\n')}\n\nUse this context to explain WHAT was done (the tasks/actions), not just file stats. If there were errors/blockers, mention them.`;
       debugLog(`generateAIMessage: injected ${contextParts.length} context part(s) into prompt`, config);
     } else {
       debugLog(`generateAIMessage: no context available to inject (projectName, sessionTitle, sessionSummary all empty)`, config);

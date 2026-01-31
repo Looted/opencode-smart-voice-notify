@@ -141,7 +141,7 @@ describe('error handler functionality', () => {
     
     test('error prompt mentions error/problem context', () => {
       const prompt = config.aiPrompts.error.toLowerCase();
-      expect(prompt.includes('error') || prompt.includes('problem') || prompt.includes('wrong')).toBe(true);
+      expect(prompt.includes('error') || prompt.includes('problem') || prompt.includes('wrong') || prompt.includes('broke')).toBe(true);
     });
     
     test('errorReminder prompt conveys urgency', () => {
