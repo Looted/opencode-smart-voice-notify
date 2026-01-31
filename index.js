@@ -845,13 +845,15 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     
     // Step 5: If TTS-first or both mode, generate and speak immediate message
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-      const ttsMessage = await getPermissionMessage(batchCount, false, aiContext);
-      await tts.wakeMonitor();
-      await tts.forceVolume();
-      await tts.speak(ttsMessage, {
-        enableTTS: true,
-        fallbackSound: config.permissionSound
-      });
+      // Don't await the TTS generation/playback to avoid blocking the terminal
+      getPermissionMessage(batchCount, false, aiContext).then(async (ttsMessage) => {
+        await tts.wakeMonitor();
+        await tts.forceVolume();
+        await tts.speak(ttsMessage, {
+          enableTTS: true,
+          fallbackSound: config.permissionSound
+        });
+      }).catch(e => debugLog(`TTS error: ${e.message}`));
     }
     
     // Final check: if user responded during notification, cancel scheduled reminder
@@ -951,13 +953,15 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
     
     // Step 5: If TTS-first or both mode, generate and speak immediate message
     if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-      const ttsMessage = await getQuestionMessage(totalQuestionCount, false, aiContext);
-      await tts.wakeMonitor();
-      await tts.forceVolume();
-      await tts.speak(ttsMessage, {
-        enableTTS: true,
-        fallbackSound: config.questionSound
-      });
+      // Don't await the TTS generation/playback to avoid blocking the terminal
+      getQuestionMessage(totalQuestionCount, false, aiContext).then(async (ttsMessage) => {
+        await tts.wakeMonitor();
+        await tts.forceVolume();
+        await tts.speak(ttsMessage, {
+          enableTTS: true,
+          fallbackSound: config.questionSound
+        });
+      }).catch(e => debugLog(`TTS error: ${e.message}`));
     }
     
     // Final check: if user responded during notification, cancel scheduled reminder
@@ -1135,6 +1139,7 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
 
           // Fetch session details for context-aware AI and sub-session filtering
           let sessionData = null;
+          let sessionMessages = [];
           try {
             const session = await client.session.get({ path: { id: sessionID } });
             sessionData = session?.data;
@@ -1142,7 +1147,39 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               debugLog(`session.idle: skipped (sub-session ${sessionID})`);
               return;
             }
+
+            // Fetch messages to get context on what was done
+            try {
+              if (client.message && typeof client.message.list === 'function') {
+                const messagesResult = await client.message.list({ path: { sessionID } });
+                sessionMessages = messagesResult?.data || [];
+              }
+            } catch (msgError) {
+              debugLog(`session.idle: failed to fetch messages: ${msgError.message}`);
+            }
           } catch (e) {}
+
+          // Analyze messages for context
+          let lastUserMessage = '';
+          let lastAssistantMessage = '';
+          let hasErrors = false;
+
+          if (sessionMessages.length > 0) {
+            // Find last user message
+            const userMsgs = sessionMessages.filter(m => m.role === 'user');
+            if (userMsgs.length > 0) {
+              lastUserMessage = userMsgs[userMsgs.length - 1].content;
+            }
+
+            // Find last assistant message
+            const assistantMsgs = sessionMessages.filter(m => m.role === 'assistant');
+            if (assistantMsgs.length > 0) {
+              lastAssistantMessage = assistantMsgs[assistantMsgs.length - 1].content;
+            }
+
+            // Check for errors (simple heuristic)
+            hasErrors = sessionMessages.some(m => m.role === 'error' || (m.role === 'tool' && m.content && m.content.toLowerCase().includes('error')));
+          }
 
           // Build context for AI message generation (used when enableContextAwareAI is true)
           // Note: SDK's Project type doesn't have 'name' property, so we use derivedProjectName
@@ -1153,7 +1190,10 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
               files: sessionData.summary.files,
               additions: sessionData.summary.additions,
               deletions: sessionData.summary.deletions
-            } : undefined
+            } : undefined,
+            lastUserMessage,
+            lastAssistantMessage,
+            hasErrors
           };
 
           // Record the time session went idle - used to filter out pre-idle messages
@@ -1207,13 +1247,15 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           
           // Step 5: If TTS-first or both mode, generate and speak immediate message
           if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-            const ttsMessage = await getSmartMessage('idle', false, config.idleTTSMessages, aiContext);
-            await tts.wakeMonitor();
-            await tts.forceVolume();
-            await tts.speak(ttsMessage, {
-              enableTTS: true,
-              fallbackSound: config.idleSound
-            });
+            // Don't await the TTS generation/playback to avoid blocking the terminal
+            getSmartMessage('idle', false, config.idleTTSMessages, aiContext).then(async (ttsMessage) => {
+              await tts.wakeMonitor();
+              await tts.forceVolume();
+              await tts.speak(ttsMessage, {
+                enableTTS: true,
+                fallbackSound: config.idleSound
+              });
+            }).catch(e => debugLog(`TTS error: ${e.message}`));
           }
         }
 
@@ -1287,13 +1329,15 @@ export default async function SmartVoiceNotifyPlugin({ project, client, $, direc
           
           // Step 4: If TTS-first or both mode, generate and speak immediate message
           if (config.notificationMode === 'tts-first' || config.notificationMode === 'both') {
-            const ttsMessage = await getErrorMessage(1, false);
-            await tts.wakeMonitor();
-            await tts.forceVolume();
-            await tts.speak(ttsMessage, {
-              enableTTS: true,
-              fallbackSound: config.errorSound
-            });
+            // Don't await the TTS generation/playback to avoid blocking the terminal
+            getErrorMessage(1, false).then(async (ttsMessage) => {
+              await tts.wakeMonitor();
+              await tts.forceVolume();
+              await tts.speak(ttsMessage, {
+                enableTTS: true,
+                fallbackSound: config.errorSound
+              });
+            }).catch(e => debugLog(`TTS error: ${e.message}`));
           }
         }
 

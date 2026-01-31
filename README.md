@@ -14,6 +14,8 @@
 
 > **Disclaimer**: This project is not built by the OpenCode team and is not affiliated with [OpenCode](https://opencode.ai) in any way. It is an independent community plugin.
 
+> **Fork Notice**: This is a fork of the original [opencode-smart-voice-notify](https://github.com/MasuRii/opencode-smart-voice-notify) plugin. It adds **WSL2 support** (via PulseAudio/Windows interop) and **increases AI message limits** (up to 500 characters) for more detailed and expressive notifications.
+
 A smart voice notification plugin for [OpenCode](https://opencode.ai) with **multiple TTS engines**, native desktop notifications, and an intelligent reminder system.
 
 <img width="1456" height="720" alt="image" src="https://github.com/user-attachments/assets/52ccf357-2548-400b-a346-6362f2fc3180" />

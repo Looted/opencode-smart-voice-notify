@@ -259,14 +259,14 @@ export const getDefaultConfigObject = () => ({
   aiFallbackToStatic: true,
   enableContextAwareAI: false,
   aiPrompts: {
-    idle: "Generate a single brief, friendly notification sentence (max 15 words) saying a coding task is complete. Be encouraging and warm. Output only the message, no quotes.",
-    permission: "Generate a single brief, urgent but friendly notification sentence (max 15 words) asking the user to approve a permission request. Output only the message, no quotes.",
-    question: "Generate a single brief, polite notification sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
-    error: "Generate a single brief, concerned but calm notification sentence (max 15 words) saying an error occurred and needs attention. Output only the message, no quotes.",
-    idleReminder: "Generate a single brief, gentle reminder sentence (max 15 words) that a completed task is waiting for review. Be slightly more insistent. Output only the message, no quotes.",
-    permissionReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey importance. Output only the message, no quotes.",
-    questionReminder: "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes.",
-    errorReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Convey urgency. Output only the message, no quotes."
+    idle: "Summarize the actual work done in 1-2 sarcastic or ironic sentences. Focus on the actions taken (refactoring, fixing bugs) rather than just file counts. If there were errors or blockers, mention them with a dry wit. Be concise but useful. No fluff. Output only the message, no quotes.",
+    permission: "Generate a single brief, urgent but slightly annoyed sentence (max 15 words) asking the user to approve a permission request so I can actually do my job. Output only the message, no quotes.",
+    question: "Generate a single brief, witty sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
+    error: "Generate a single brief, dryly sarcastic sentence (max 15 words) announcing that something broke and needs attention. Output only the message, no quotes.",
+    idleReminder: "Generate a single brief, sarcastic reminder (max 15 words) that a completed task is gathering dust waiting for review. Be annoyingly persistent. Output only the message, no quotes.",
+    permissionReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey extreme impatience. Output only the message, no quotes.",
+    questionReminder: "Generate a single brief, persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Use dry humor. Output only the message, no quotes.",
+    errorReminder: "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Be dramatic. Output only the message, no quotes."
   },
   idleSound: 'assets/Soft-high-tech-notification-sound-effect.mp3',
   permissionSound: 'assets/Machine-alert-beep-sound-effect.mp3',
@@ -743,14 +743,14 @@ const generateDefaultConfig = (overrides = {}, version = '1.0.0') => {
     // The AI will generate a short message based on these prompts
     // Keep prompts concise - they're sent with each notification
     "aiPrompts": ${formatJSON(overrides.aiPrompts || {
-        "idle": "Generate a single brief, friendly notification sentence (max 15 words) saying a coding task is complete. Be encouraging and warm. Output only the message, no quotes.",
-        "permission": "Generate a single brief, urgent but friendly notification sentence (max 15 words) asking the user to approve a permission request. Output only the message, no quotes.",
-        "question": "Generate a single brief, polite notification sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
-        "error": "Generate a single brief, concerned but calm notification sentence (max 15 words) saying an error occurred and needs attention. Output only the message, no quotes.",
-        "idleReminder": "Generate a single brief, gentle reminder sentence (max 15 words) that a completed task is waiting for review. Be slightly more insistent. Output only the message, no quotes.",
-        "permissionReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey importance. Output only the message, no quotes.",
-        "questionReminder": "Generate a single brief, polite but persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Output only the message, no quotes.",
-        "errorReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Convey urgency. Output only the message, no quotes."
+        "idle": "Summarize the actual work done in 1-2 sarcastic or ironic sentences. Focus on the actions taken (refactoring, fixing bugs) rather than just file counts. If there were errors or blockers, mention them with a dry wit. Be concise but useful. No fluff. Output only the message, no quotes.",
+        "permission": "Generate a single brief, urgent but slightly annoyed sentence (max 15 words) asking the user to approve a permission request so I can actually do my job. Output only the message, no quotes.",
+        "question": "Generate a single brief, witty sentence (max 15 words) saying the assistant has a question and needs user input. Output only the message, no quotes.",
+        "error": "Generate a single brief, dryly sarcastic sentence (max 15 words) announcing that something broke and needs attention. Output only the message, no quotes.",
+        "idleReminder": "Generate a single brief, sarcastic reminder (max 15 words) that a completed task is gathering dust waiting for review. Be annoyingly persistent. Output only the message, no quotes.",
+        "permissionReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that permission approval is still needed. Convey extreme impatience. Output only the message, no quotes.",
+        "questionReminder": "Generate a single brief, persistent reminder sentence (max 15 words) that a question is still waiting for an answer. Use dry humor. Output only the message, no quotes.",
+        "errorReminder": "Generate a single brief, urgent reminder sentence (max 15 words) that an error still needs attention. Be dramatic. Output only the message, no quotes."
     }, 4)},
     
     // ============================================================

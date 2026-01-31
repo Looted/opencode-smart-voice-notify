@@ -175,7 +175,7 @@ describe('Context-Aware AI Feature (Issue #9)', () => {
         
         expect(prompt).toContain('Project: "CodeRefactor"');
         expect(prompt).toContain('Task: "Refactor database layer"');
-        expect(prompt).toContain('Changes:');
+        expect(prompt).toContain('Stats:');
         expect(prompt).toContain('5 file(s) modified');
         expect(prompt).toContain('+120 lines');
         expect(prompt).toContain('-45 lines');
